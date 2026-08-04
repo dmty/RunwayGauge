@@ -19,7 +19,10 @@ public struct UsageStore: Sendable {
     public static func defaultDirectory(
         home: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> URL {
-        home.appending(path: containerRelativePath)
+        if home.path.contains("/Library/Containers/") {
+            return home.appending(path: "Library/Application Support/MacUsageWidget")
+        }
+        return home.appending(path: containerRelativePath)
     }
 
     public static func url(

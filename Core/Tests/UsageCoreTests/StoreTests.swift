@@ -25,7 +25,20 @@ private let validPayload = """
 @Test("default path is derived from the home directory")
 func defaultPath() {
     let home = URL(fileURLWithPath: "/Users/test")
-    let expected = UsageStore.defaultDirectory(home: home).appending(path: "claude-code.json")
+    let expected = URL(fileURLWithPath:
+        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget/claude-code.json"
+    )
+    #expect(UsageStore.url(source: "claude-code", home: home) == expected)
+}
+
+@Test("container home is not nested inside itself")
+func containerHomePath() {
+    let home = URL(fileURLWithPath:
+        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data"
+    )
+    let expected = URL(fileURLWithPath:
+        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget/claude-code.json"
+    )
     #expect(UsageStore.url(source: "claude-code", home: home) == expected)
 }
 
