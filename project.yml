@@ -32,6 +32,8 @@ targets:
       - path: scripts/helpers-bundle/Helpers
         type: folder
         buildPhase: resources
+      - path: scripts/install-helpers-from-bundle.sh
+        buildPhase: resources
     dependencies:
       - package: UsageCore
         product: UsageCore
