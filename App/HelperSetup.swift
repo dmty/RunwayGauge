@@ -131,7 +131,16 @@ enum HelperSetup {
         guard let data = output.data(using: .utf8), data.count > maxOutputBytes else {
             return output
         }
-        let suffix = data.suffix(maxOutputBytes)
-        return String(data: suffix, encoding: .utf8) ?? output
+        var bytes = Array(data.suffix(maxOutputBytes))
+        while let first = bytes.first, (first & 0xC0) == 0x80 {
+            bytes.removeFirst()
+        }
+        while !bytes.isEmpty {
+            if let decoded = String(bytes: bytes, encoding: .utf8) {
+                return decoded
+            }
+            bytes.removeLast()
+        }
+        return ""
     }
 }
