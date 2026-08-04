@@ -22,24 +22,30 @@ private let validPayload = """
  "windows":[{"id":"five_hour","label":"Session","usedPercent":19.0,"resetsAt":1800003600}]}
 """
 
+private let expectedUsageFile = URL(fileURLWithPath:
+    "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget/claude-code.json"
+)
+
 @Test("default path is derived from the home directory")
 func defaultPath() {
     let home = URL(fileURLWithPath: "/Users/test")
-    let expected = URL(fileURLWithPath:
-        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget/claude-code.json"
-    )
-    #expect(UsageStore.url(source: "claude-code", home: home) == expected)
+    #expect(UsageStore.url(source: "claude-code", home: home) == expectedUsageFile)
 }
 
-@Test("container home is not nested inside itself")
+@Test("widget extension container home uses short Application Support path")
 func containerHomePath() {
     let home = URL(fileURLWithPath:
         "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data"
     )
-    let expected = URL(fileURLWithPath:
-        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget/claude-code.json"
+    #expect(UsageStore.url(source: "claude-code", home: home) == expectedUsageFile)
+}
+
+@Test("host app container home resolves to widget extension data path")
+func hostAppContainerHomePath() {
+    let home = URL(fileURLWithPath:
+        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget/Data"
     )
-    #expect(UsageStore.url(source: "claude-code", home: home) == expected)
+    #expect(UsageStore.url(source: "claude-code", home: home) == expectedUsageFile)
 }
 
 @Test("missing file loads as missing")

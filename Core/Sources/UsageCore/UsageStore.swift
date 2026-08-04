@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 public enum UsageLoadResult: Sendable, Equatable {
     case record(UsageRecord)
@@ -13,21 +16,45 @@ public enum WidgetState: Sendable, Equatable {
 }
 
 public struct UsageStore: Sendable {
+    private static let widgetContainerID = "com.mirabilia.MacUsageWidget.UsageWidget"
+    private static let appSupportRelativePath = "Library/Application Support/MacUsageWidget"
+    private static let containersMarker = "/Library/Containers/"
+    private static let widgetContainerDataMarker =
+        "\(containersMarker)\(widgetContainerID)/Data"
     private static let containerRelativePath =
-        "Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget"
+        "Library/Containers/\(widgetContainerID)/Data/\(appSupportRelativePath)"
+
+    private static func realUserHome() -> URL {
+        #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+        if let passwd = getpwuid(getuid()) {
+            return URL(fileURLWithPath: String(cString: passwd.pointee.pw_dir))
+        }
+        #endif
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    private static func isWidgetExtensionContainerHome(_ home: URL) -> Bool {
+        home.path.contains(widgetContainerDataMarker)
+    }
+
+    private static func realHomePrefix(from home: URL) -> URL {
+        guard let range = home.path.range(of: containersMarker) else { return home }
+        return URL(fileURLWithPath: String(home.path[..<range.lowerBound]))
+    }
 
     public static func defaultDirectory(
-        home: URL = FileManager.default.homeDirectoryForCurrentUser
+        home: URL? = nil
     ) -> URL {
-        if home.path.contains("/Library/Containers/") {
-            return home.appending(path: "Library/Application Support/MacUsageWidget")
+        let resolved = home ?? realUserHome()
+        if isWidgetExtensionContainerHome(resolved) {
+            return resolved.appending(path: appSupportRelativePath)
         }
-        return home.appending(path: containerRelativePath)
+        return realHomePrefix(from: resolved).appending(path: containerRelativePath)
     }
 
     public static func url(
         source: String,
-        home: URL = FileManager.default.homeDirectoryForCurrentUser
+        home: URL? = nil
     ) -> URL {
         defaultDirectory(home: home).appending(path: "\(source).json")
     }
