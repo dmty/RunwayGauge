@@ -6,6 +6,8 @@
 # invalidate Claude Code's own rotating refresh token.
 set -uo pipefail
 
+# shellcheck source=lib/runtime-env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/runtime-env.sh"
 # shellcheck source=scripts/lib/paths.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 

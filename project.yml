@@ -29,6 +29,9 @@ targets:
     sources:
       - path: App
       - path: AppIcon.icon
+      - path: scripts/helpers-bundle/Helpers
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: UsageCore
         product: UsageCore

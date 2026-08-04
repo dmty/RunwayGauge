@@ -3,6 +3,9 @@
 # preserving whatever statusline command is already configured.
 set -euo pipefail
 
+# shellcheck source=lib/runtime-env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/runtime-env.sh"
+
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/claude-config.sh
 source "$SCRIPTS_DIR/lib/claude-config.sh"

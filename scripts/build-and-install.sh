@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 DERIVED="$PWD/build"
 APP="MacUsageWidget.app"
 
+./scripts/sync-helpers-bundle.sh
 xcodegen generate
 xcodebuild -project MacUsageWidget.xcodeproj \
   -scheme MacUsageWidget \

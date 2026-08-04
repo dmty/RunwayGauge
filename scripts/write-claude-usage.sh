@@ -3,6 +3,8 @@
 # usage windows for the widget. Never fails loudly: it runs inside the statusline.
 set -uo pipefail
 
+# shellcheck source=lib/runtime-env.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/runtime-env.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
 
 MIN_WRITE_INTERVAL=30
