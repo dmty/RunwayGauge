@@ -4,6 +4,9 @@ options:
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
+  fileTypes:
+    icon:
+      file: true
 
 settings:
   base:
@@ -23,7 +26,9 @@ targets:
   MacUsageWidget:
     type: application
     platform: macOS
-    sources: [App]
+    sources:
+      - path: App
+      - path: AppIcon.icon
     dependencies:
       - package: UsageCore
         product: UsageCore
