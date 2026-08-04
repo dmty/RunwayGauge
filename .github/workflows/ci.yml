@@ -1,0 +1,46 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: brew install xcodegen jq
+      - name: Core tests
+        run: (cd Core && swift test)
+      - name: Shell tests
+        run: |
+          ./tests/test-writer.sh
+          ./tests/test-poller.sh
+          ./tests/test-helper-setup.sh
+          ./tests/test-cap-output.sh
+      - name: App tests
+        run: |
+          VER=$(tr -d '[:space:]' < version.txt)
+          BUILD=$(./scripts/semver-to-build.sh "$VER")
+          ./scripts/sync-helpers-bundle.sh
+          xcodegen generate
+          xcodebuild test \
+            -project MacUsageWidget.xcodeproj \
+            -scheme MacUsageWidget \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/ci \
+            MARKETING_VERSION="$VER" \
+            CURRENT_PROJECT_VERSION="$BUILD"
+      - name: Release build smoke
+        run: ./scripts/build-release.sh
+      - name: DMG packaging smoke
+        run: |
+          APP="$PWD/build/Build/Products/Release/MacUsageWidget.app"
+          DMG="$RUNNER_TEMP/MacUsageWidget-ci.dmg"
+          ./scripts/package-dmg.sh "$APP" "$DMG"
+          hdiutil verify "$DMG"
