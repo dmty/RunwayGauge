@@ -1,0 +1,78 @@
+name: release
+on:
+  release:
+    types: [published]
+jobs:
+  dmg:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Install tools
+        run: brew install xcodegen
+      - name: Verify tag matches version.txt
+        run: |
+          VER=$(tr -d '[:space:]' < version.txt)
+          EXPECTED="v$VER"
+          ACTUAL="${{ github.event.release.tag_name }}"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::release tag $ACTUAL does not match version.txt ($EXPECTED)"
+            exit 1
+          fi
+          echo "VER=$VER" >> "$GITHUB_ENV"
+      - name: Build app
+        run: |
+          ./scripts/build-release.sh
+          APP="$PWD/build/Build/Products/Release/MacUsageWidget.app"
+          test -d "$APP"
+          echo "APP=$APP" >> "$GITHUB_ENV"
+      - name: Verify ad-hoc signature and signing stub
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -n "${APPLE_CERTIFICATE:-}" ] || \
+             [ -n "${APPLE_CERTIFICATE_PASSWORD:-}" ] || \
+             [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "::error::signing secrets are configured, but Developer ID signing is not implemented"
+            exit 1
+          fi
+          codesign --verify --deep --strict "$APP"
+          echo "::warning::publishing an ad-hoc signed app; Developer ID signing is not implemented"
+      - name: Package DMG
+        run: |
+          DMG="MacUsageWidget-${VER}.dmg"
+          ./scripts/package-dmg.sh "$APP" "$DMG"
+          hdiutil verify "$DMG"
+          echo "DMG=$DMG" >> "$GITHUB_ENV"
+      - name: Notarization stub
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          if [ -n "${APPLE_API_KEY:-}" ] || \
+             [ -n "${APPLE_API_KEY_ID:-}" ] || \
+             [ -n "${APPLE_API_ISSUER:-}" ]; then
+            echo "::error::notarization secrets are configured, but notarization is not implemented"
+            exit 1
+          fi
+          echo "::warning::skipping notarization"
+      - name: Mark release as ad-hoc signed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          gh release view "${{ github.event.release.tag_name }}" --json body --jq .body > "$NOTES"
+          if ! grep -q 'This macOS build is ad-hoc signed' "$NOTES"; then
+            printf '\n\n> This macOS build is ad-hoc signed and not notarized; Gatekeeper may require right-click -> Open.\n' >> "$NOTES"
+            gh release edit "${{ github.event.release.tag_name }}" --notes-file "$NOTES"
+          fi
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$DMG" --clobber
