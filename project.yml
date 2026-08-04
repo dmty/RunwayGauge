@@ -1,0 +1,50 @@
+name: MacUsageWidget
+options:
+  bundleIdPrefix: com.mirabilia
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: YES
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  UsageCore:
+    path: Core
+
+targets:
+  MacUsageWidget:
+    type: application
+    platform: macOS
+    sources: [App]
+    dependencies:
+      - package: UsageCore
+        product: UsageCore
+      - target: UsageWidget
+        embed: true
+        codeSign: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.MacUsageWidget
+        CODE_SIGN_ENTITLEMENTS: App/MacUsageWidget.entitlements
+        INFOPLIST_FILE: App/Info.plist
+
+  UsageWidget:
+    type: app-extension
+    platform: macOS
+    sources: [Widget]
+    dependencies:
+      - package: UsageCore
+        product: UsageCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.MacUsageWidget.UsageWidget
+        CODE_SIGN_ENTITLEMENTS: Widget/UsageWidget.entitlements
+        INFOPLIST_FILE: Widget/Info.plist
