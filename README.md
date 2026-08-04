@@ -3,6 +3,8 @@
 macOS Notification Center widgets for service usage. The first widget shows
 Claude Code subscription limits for the 5-hour session and 7-day windows.
 
+![Claude Code usage widget — small and medium](docs/widget-preview.png)
+
 ## Requirements
 
 macOS 14+, Xcode, `jq`, and `xcodegen`:
