@@ -1,63 +1,52 @@
 import SwiftUI
+import UsageCore
 import WidgetKit
 
-struct ProbeEntry: TimelineEntry {
+struct UsageEntry: TimelineEntry {
     let date: Date
-    let readResult: String
-
-    init(date: Date = Date()) {
-        self.date = date
-        self.readResult = probeRead()
-    }
+    let state: WidgetState
 }
 
-func probeRead() -> String {
-    guard let applicationSupportURL = FileManager.default.urls(
-        for: .applicationSupportDirectory,
-        in: .userDomainMask
-    ).first else {
-        return "ERR: application support unavailable"
-    }
-    let url = applicationSupportURL.appending(path: "MacUsageWidget/probe.txt")
-    do {
-        return try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
-    } catch {
-        return "ERR: \((error as NSError).code)"
-    }
-}
-
-struct ProbeProvider: TimelineProvider {
-    func placeholder(in context: Context) -> ProbeEntry { ProbeEntry() }
-
-    func getSnapshot(in context: Context, completion: @escaping (ProbeEntry) -> Void) {
-        completion(ProbeEntry())
+struct UsageProvider: TimelineProvider {
+    private func currentEntry(now: Date = Date()) -> UsageEntry {
+        let url = UsageStore.url(source: "claude-code")
+        let result = UsageStore.load(from: url)
+        return UsageEntry(date: now, state: UsageStore.state(for: result, now: now, path: url.path))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<ProbeEntry>) -> Void) {
+    func placeholder(in context: Context) -> UsageEntry {
+        UsageEntry(date: Date(), state: .empty)
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
+        completion(currentEntry())
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
         let now = Date()
-        completion(Timeline(entries: [ProbeEntry(date: now)], policy: .after(now.addingTimeInterval(300))))
+        // One entry only: a precomputed multi-entry timeline would carry data read now
+        // into future entries, displaying numbers already known to be stale.
+        completion(Timeline(entries: [currentEntry(now: now)],
+                            policy: .after(now.addingTimeInterval(300))))
     }
 }
 
-struct ProbeView: View {
-    var entry: ProbeEntry
+struct UsageWidgetEntryView: View {
+    @Environment(\.widgetFamily) private var family
+    var entry: UsageEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(entry.readResult).font(.caption).bold()
-            Text(entry.date, style: .time).font(.caption2).foregroundStyle(.secondary)
-        }
-        .containerBackground(for: .widget) { Color.black.opacity(0.9) }
+        ClaudeUsageView(state: entry.state, now: entry.date, compact: family == .systemSmall)
     }
 }
 
 struct UsageWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "UsageWidget", provider: ProbeProvider()) { entry in
-            ProbeView(entry: entry)
+        StaticConfiguration(kind: "UsageWidget", provider: UsageProvider()) { entry in
+            UsageWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Claude Code Usage")
-        .description("Session and weekly usage.")
+        .description("Session and weekly usage limits.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
