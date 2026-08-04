@@ -4,6 +4,11 @@ import UsageCore
 struct StatusView: View {
     private let url = UsageStore.url(source: "claude-code")
 
+    @State private var isInstalled = HelperSetup.isInstalled()
+    @State private var setupOutput: String?
+    @State private var setupOutcome: SetupOutcome?
+    @State private var isRunning = false
+
     private var now: Date { Date() }
 
     var body: some View {
@@ -28,9 +33,55 @@ struct StatusView: View {
             Text("Refresh this window to re-check.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+
+            Divider()
+
+            Button {
+                isRunning = true
+                setupOutput = nil
+                setupOutcome = nil
+                Task {
+                    let result = await HelperSetup.runSetup()
+                    setupOutcome = Self.outcome(from: result)
+                    setupOutput = result.output
+                    isInstalled = HelperSetup.isInstalled()
+                    isRunning = false
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if isRunning {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Label(
+                        isInstalled ? "Re-run setup" : "Set up data collection",
+                        systemImage: "gearshape"
+                    )
+                }
+            }
+            .disabled(isRunning)
+
+            if let setupOutcome {
+                Text(setupOutcome.label)
+                    .font(.caption)
+                    .foregroundStyle(setupOutcome.color)
+            }
+
+            if let setupOutput {
+                ScrollView {
+                    Text(setupOutput)
+                        .font(.system(size: 10, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 160)
+            }
         }
         .padding(24)
-        .frame(width: 460, alignment: .leading)
+        .frame(width: 500, alignment: .leading)
+        .onAppear {
+            isInstalled = HelperSetup.isInstalled()
+        }
     }
 
     private var statusLine: String {
@@ -52,6 +103,32 @@ struct StatusView: View {
                 return "Stale (\(formatter.ageDescription(age))) — \(windows), written by \(record.origin)."
             }
         }
+    }
+
+    private enum SetupOutcome {
+        case success, partial, failure
+
+        var label: String {
+            switch self {
+            case .success: "Setup succeeded"
+            case .partial: "Setup partially failed"
+            case .failure: "Setup failed"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .success: .green
+            case .partial: .orange
+            case .failure: .red
+            }
+        }
+    }
+
+    private static func outcome(from result: SetupResult) -> SetupOutcome {
+        if result.succeeded { return .success }
+        if result.output.contains("partially failed") { return .partial }
+        return .failure
     }
 }
 
