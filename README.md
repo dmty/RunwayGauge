@@ -75,11 +75,11 @@ Release notes for ad-hoc signed builds include a Gatekeeper notice.
 
 ## Release automation token
 
-Configure a repository secret named **`RELEASE_PLEASE_TOKEN`** containing a fine-grained personal access token with **Contents**, **Pull requests**, and **Issues** read/write access on this repository.
+`release-please.yml` uses the repository's built-in **`GITHUB_TOKEN`** — no custom secret is required. The workflow grants `contents: write`, `issues: write`, and `pull-requests: write` so release-please can open Release PRs and create GitHub Releases.
 
-The default `GITHUB_TOKEN` is not sufficient: PRs and Releases created by `GITHUB_TOKEN` do not trigger downstream workflows. This project relies on those events to run CI on Release PRs and build/upload the DMG when a release is published.
+**Optional `RELEASE_PLEASE_TOKEN`:** GitHub does not run downstream workflows for some resources created by `GITHUB_TOKEN` (for example, CI on a Release PR or `release.yml` on publish). This project is wired to use `GITHUB_TOKEN` by default; if those chained workflows do not fire in your repository, add a repository secret named `RELEASE_PLEASE_TOKEN` containing a fine-grained personal access token with **Contents**, **Pull requests**, and **Issues** read/write access, and pass it to the release-please action's `token` input. PAT-created events behave like a user action and can trigger workflows that `GITHUB_TOKEN` cannot.
 
-**Rotation:** create a new PAT with the same permissions, update the `RELEASE_PLEASE_TOKEN` repository secret, verify the next release-please run succeeds, then revoke the old PAT.
+**Rotation (PAT only):** create a new PAT with the same permissions, update the `RELEASE_PLEASE_TOKEN` secret, verify the next release-please run succeeds, then revoke the old PAT.
 
 ## Future signing secrets
 
