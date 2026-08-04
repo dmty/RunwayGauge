@@ -1,4 +1,4 @@
-name: MacUsageWidget
+name: RunwayGauge
 options:
   bundleIdPrefix: com.mirabilia
   deploymentTarget:
@@ -23,7 +23,7 @@ packages:
     path: Core
 
 targets:
-  MacUsageWidget:
+  RunwayGauge:
     type: application
     platform: macOS
     sources:
@@ -42,8 +42,8 @@ targets:
         codeSign: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.MacUsageWidget
-        CODE_SIGN_ENTITLEMENTS: App/MacUsageWidget.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.RunwayGauge
+        CODE_SIGN_ENTITLEMENTS: App/RunwayGauge.entitlements
         INFOPLIST_FILE: App/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
@@ -56,6 +56,6 @@ targets:
         product: UsageCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.MacUsageWidget.UsageWidget
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.RunwayGauge.UsageWidget
         CODE_SIGN_ENTITLEMENTS: Widget/UsageWidget.entitlements
         INFOPLIST_FILE: Widget/Info.plist

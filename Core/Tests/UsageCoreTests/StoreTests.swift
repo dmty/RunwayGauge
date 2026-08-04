@@ -23,7 +23,7 @@ private let validPayload = """
 """
 
 private let expectedUsageFile = URL(fileURLWithPath:
-    "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget/claude-code.json"
+    "/Users/test/Library/Containers/com.mirabilia.RunwayGauge.UsageWidget/Data/Library/Application Support/RunwayGauge/claude-code.json"
 )
 
 @Test("default path is derived from the home directory")
@@ -35,7 +35,7 @@ func defaultPath() {
 @Test("widget extension container home uses short Application Support path")
 func containerHomePath() {
     let home = URL(fileURLWithPath:
-        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data"
+        "/Users/test/Library/Containers/com.mirabilia.RunwayGauge.UsageWidget/Data"
     )
     #expect(UsageStore.url(source: "claude-code", home: home) == expectedUsageFile)
 }
@@ -43,7 +43,7 @@ func containerHomePath() {
 @Test("host app container home resolves to widget extension data path")
 func hostAppContainerHomePath() {
     let home = URL(fileURLWithPath:
-        "/Users/test/Library/Containers/com.mirabilia.MacUsageWidget/Data"
+        "/Users/test/Library/Containers/com.mirabilia.RunwayGauge/Data"
     )
     #expect(UsageStore.url(source: "claude-code", home: home) == expectedUsageFile)
 }

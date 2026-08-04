@@ -1,4 +1,4 @@
-# mac-usage-widget
+# RunwayGauge
 
 macOS Notification Center widgets for service usage. The first widget shows
 Claude Code subscription limits for the 5-hour session and 7-day windows.
@@ -13,8 +13,8 @@ macOS 14+, Xcode, `jq`, and `xcodegen`:
 
 ## Install from release
 
-1. Download `MacUsageWidget-<version>.dmg` from the project's GitHub Releases page.
-2. Open the DMG and drag `MacUsageWidget.app` to Applications.
+1. Download `RunwayGauge-<version>.dmg` from the project's GitHub Releases page.
+2. Open the DMG and drag `RunwayGauge.app` to Applications.
 3. Launch the app. macOS Gatekeeper may block the ad-hoc signed build the first time — right-click the app → **Open** → **Open** again to confirm.
 4. Click **Set up data collection** in the app. This copies bundled helper scripts to Application Support and installs the statusline writer and background poller.
 5. Add the small or medium widget from Notification Center → Edit Widgets.
@@ -25,7 +25,7 @@ macOS 14+, Xcode, `jq`, and `xcodegen`:
 
     ./scripts/build-and-install.sh
 
-This installs `MacUsageWidget.app` in `/Applications` and launches it once so
+This installs `RunwayGauge.app` in `/Applications` and launches it once so
 the widget registers. Add the small or medium widget from Notification Center
 → Edit Widgets.
 
@@ -41,7 +41,7 @@ each `settings.json`. Undo it with:
 
 The data file is in the widget extension container:
 
-    ~/Library/Containers/com.mirabilia.MacUsageWidget.UsageWidget/Data/Library/Application Support/MacUsageWidget/claude-code.json
+    ~/Library/Containers/com.mirabilia.RunwayGauge.UsageWidget/Data/Library/Application Support/RunwayGauge/claude-code.json
 
 The host app is intentionally unsandboxed so it can show whether this file is
 available and current. The widget extension remains sandboxed.
@@ -69,7 +69,7 @@ Flow:
 1. Merge conventional commits to `main` with the **`ci / test`** branch protection check passing.
 2. After `main` CI succeeds, release-please opens or updates a Release PR (version bump + changelog).
 3. Merge the Release PR → tag `vMAJOR.MINOR.PATCH` and a GitHub Release are created.
-4. Publishing the release triggers `release.yml`, which builds the app, packages a DMG, and uploads `MacUsageWidget-<version>.dmg` to the release assets.
+4. Publishing the release triggers `release.yml`, which builds the app, packages a DMG, and uploads `RunwayGauge-<version>.dmg` to the release assets.
 
 Release notes for ad-hoc signed builds include a Gatekeeper notice.
 

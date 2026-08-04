@@ -27,7 +27,7 @@ jobs:
         run: ./scripts/build-release.sh
       - name: DMG packaging smoke
         run: |
-          APP="$PWD/build/Build/Products/Release/MacUsageWidget.app"
-          DMG="$RUNNER_TEMP/MacUsageWidget-ci.dmg"
+          APP="$PWD/build/Build/Products/Release/RunwayGauge.app"
+          DMG="$RUNNER_TEMP/RunwayGauge-ci.dmg"
           ./scripts/package-dmg.sh "$APP" "$DMG"
           hdiutil verify "$DMG"

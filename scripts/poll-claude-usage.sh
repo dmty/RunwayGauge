@@ -31,7 +31,7 @@ else
   response=$(curl -sS --max-time 15 -w '\n%{http_code}' \
     -H "Authorization: Bearer $token" \
     -H "Accept: application/json" \
-    -H "User-Agent: mac-usage-widget/1.0" \
+    -H "User-Agent: runway-gauge/1.0" \
     "https://api.anthropic.com/api/oauth/usage") || exit 0
   unset token
 

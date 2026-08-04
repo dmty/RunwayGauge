@@ -16,8 +16,8 @@ public enum WidgetState: Sendable, Equatable {
 }
 
 public struct UsageStore: Sendable {
-    private static let widgetContainerID = "com.mirabilia.MacUsageWidget.UsageWidget"
-    private static let appSupportRelativePath = "Library/Application Support/MacUsageWidget"
+    private static let widgetContainerID = "com.mirabilia.RunwayGauge.UsageWidget"
+    private static let appSupportRelativePath = "Library/Application Support/RunwayGauge"
     private static let containersMarker = "/Library/Containers/"
     private static let widgetContainerDataMarker =
         "\(containersMarker)\(widgetContainerID)/Data"

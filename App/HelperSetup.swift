@@ -6,7 +6,7 @@ struct SetupResult: Sendable {
 }
 
 enum HelperSetup {
-    private static let launchAgentPlistName = "com.mirabilia.macusagewidget.claudeusage.plist"
+    private static let launchAgentPlistName = "com.mirabilia.runwaygauge.claudeusage.plist"
     private static let jqSearchPaths = [
         "/opt/homebrew/bin/jq",
         "/usr/local/bin/jq",
@@ -22,7 +22,7 @@ enum HelperSetup {
 
     static var installDirectoryURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MacUsageWidget/helpers", isDirectory: true)
+            .appendingPathComponent("RunwayGauge/helpers", isDirectory: true)
     }
 
     static func isInstalled(

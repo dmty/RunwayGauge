@@ -2,14 +2,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 DERIVED="$PWD/build"
-APP_NAME="MacUsageWidget.app"
+APP_NAME="RunwayGauge.app"
 VER=$(tr -d '[:space:]' < version.txt)
 BUILD=$(./scripts/semver-to-build.sh "$VER")
 
 ./scripts/sync-helpers-bundle.sh
 xcodegen generate
-xcodebuild -project MacUsageWidget.xcodeproj \
-  -scheme MacUsageWidget \
+xcodebuild -project RunwayGauge.xcodeproj \
+  -scheme RunwayGauge \
   -configuration Release \
   -derivedDataPath "$DERIVED" \
   MARKETING_VERSION="$VER" \

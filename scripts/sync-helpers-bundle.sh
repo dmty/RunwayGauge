@@ -12,8 +12,8 @@ for f in "${FILES[@]}"; do
   cp "$ROOT/scripts/$f" "$DEST/$f"
   chmod 755 "$DEST/$f"
 done
-cp "$ROOT/scripts/com.mirabilia.macusagewidget.claudeusage.plist" "$DEST/"
-chmod 644 "$DEST/com.mirabilia.macusagewidget.claudeusage.plist"
+cp "$ROOT/scripts/com.mirabilia.runwaygauge.claudeusage.plist" "$DEST/"
+chmod 644 "$DEST/com.mirabilia.runwaygauge.claudeusage.plist"
 for f in claude-config.sh paths.sh runtime-env.sh; do
   cp "$ROOT/scripts/lib/$f" "$DEST/lib/$f"
   chmod 644 "$DEST/lib/$f"

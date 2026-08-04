@@ -5,14 +5,14 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 DERIVED="$PWD/build"
-APP="MacUsageWidget.app"
+APP="RunwayGauge.app"
 
 ./scripts/build-release.sh
 BUILT="$DERIVED/Build/Products/Release/$APP"
 [[ -d "$BUILT" ]] || { echo "build produced no app at $BUILT" >&2; exit 1; }
 
 # Replacing a running app confuses widgetd; quit it first.
-osascript -e 'quit app "MacUsageWidget"' 2>/dev/null || true
+osascript -e 'quit app "RunwayGauge"' 2>/dev/null || true
 rm -rf "/Applications/$APP"
 cp -R "$BUILT" "/Applications/$APP"
 

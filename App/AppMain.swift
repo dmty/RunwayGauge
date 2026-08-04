@@ -13,7 +13,7 @@ struct StatusView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Usage Widget").font(.headline)
+            Text("Runway Gauge").font(.headline)
 
             Text("Add widgets from Notification Center → Edit Widgets.")
                 .font(.callout)
@@ -133,9 +133,9 @@ struct StatusView: View {
 }
 
 @main
-struct MacUsageWidgetApp: App {
+struct RunwayGaugeApp: App {
     var body: some Scene {
-        WindowGroup("Usage Widget") {
+        WindowGroup("Runway Gauge") {
             StatusView()
         }
         .windowResizability(.contentSize)

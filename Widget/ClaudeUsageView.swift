@@ -139,6 +139,6 @@ private func previewRecord(session: Double, week: Double, updatedAgo: TimeInterv
     UsageWidget()
 } timeline: {
     UsageEntry(date: previewNow,
-               state: .unreadable(path: "/Users/dmitry/Library/Application Support/MacUsageWidget/claude-code.json"))
+               state: .unreadable(path: "/Users/dmitry/Library/Application Support/RunwayGauge/claude-code.json"))
 }
 #endif

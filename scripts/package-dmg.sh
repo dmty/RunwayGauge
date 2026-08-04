@@ -8,4 +8,4 @@ STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 cp -R "$APP_PATH" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "MacUsageWidget" -srcfolder "$STAGE" -ov -format UDZO "$DMG_PATH"
+hdiutil create -volname "RunwayGauge" -srcfolder "$STAGE" -ov -format UDZO "$DMG_PATH"

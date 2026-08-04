@@ -26,7 +26,7 @@ jobs:
       - name: Build app
         run: |
           ./scripts/build-release.sh
-          APP="$PWD/build/Build/Products/Release/MacUsageWidget.app"
+          APP="$PWD/build/Build/Products/Release/RunwayGauge.app"
           test -d "$APP"
           echo "APP=$APP" >> "$GITHUB_ENV"
       - name: Verify ad-hoc signature and signing stub
@@ -45,7 +45,7 @@ jobs:
           echo "::warning::publishing an ad-hoc signed app; Developer ID signing is not implemented"
       - name: Package DMG
         run: |
-          DMG="MacUsageWidget-${VER}.dmg"
+          DMG="RunwayGauge-${VER}.dmg"
           ./scripts/package-dmg.sh "$APP" "$DMG"
           hdiutil verify "$DMG"
           echo "DMG=$DMG" >> "$GITHUB_ENV"
