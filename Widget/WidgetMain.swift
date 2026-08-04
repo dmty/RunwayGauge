@@ -12,8 +12,13 @@ struct ProbeEntry: TimelineEntry {
 }
 
 func probeRead() -> String {
-    let url = FileManager.default.homeDirectoryForCurrentUser
-        .appending(path: "Library/Application Support/MacUsageWidget/probe.txt")
+    guard let applicationSupportURL = FileManager.default.urls(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask
+    ).first else {
+        return "ERR: application support unavailable"
+    }
+    let url = applicationSupportURL.appending(path: "MacUsageWidget/probe.txt")
     do {
         return try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
     } catch {
