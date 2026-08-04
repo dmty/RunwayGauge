@@ -7,14 +7,7 @@ cd "$(dirname "$0")/.."
 DERIVED="$PWD/build"
 APP="MacUsageWidget.app"
 
-./scripts/sync-helpers-bundle.sh
-xcodegen generate
-xcodebuild -project MacUsageWidget.xcodeproj \
-  -scheme MacUsageWidget \
-  -configuration Release \
-  -derivedDataPath "$DERIVED" \
-  build
-
+./scripts/build-release.sh
 BUILT="$DERIVED/Build/Products/Release/$APP"
 [[ -d "$BUILT" ]] || { echo "build produced no app at $BUILT" >&2; exit 1; }
 
