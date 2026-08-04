@@ -69,6 +69,15 @@ func malformedFile() throws {
     #expect(UsageStore.load(from: url) == .unreadable)
 }
 
+@Test("existing but unreadable path loads as unreadable, not missing")
+func existingButUnreadablePath() throws {
+    let dir = try tempDir()
+    let url = dir.appending(path: "claude-code.json")
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: url) }
+    #expect(UsageStore.load(from: url) == .unreadable)
+}
+
 @Test("unknown schema loads as unreadable")
 func unknownSchema() throws {
     let url = try storeFile(

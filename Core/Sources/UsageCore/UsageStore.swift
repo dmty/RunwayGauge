@@ -60,7 +60,8 @@ public struct UsageStore: Sendable {
     }
 
     public static func load(from url: URL) -> UsageLoadResult {
-        guard let data = try? Data(contentsOf: url) else { return .missing }
+        guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
+        guard let data = try? Data(contentsOf: url) else { return .unreadable }
         guard let record = try? UsageRecord.decode(data) else { return .unreadable }
         return .record(record)
     }
