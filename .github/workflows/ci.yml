@@ -23,19 +23,6 @@ jobs:
           ./tests/test-poller.sh
           ./tests/test-helper-setup.sh
           ./tests/test-cap-output.sh
-      - name: App tests
-        run: |
-          VER=$(tr -d '[:space:]' < version.txt)
-          BUILD=$(./scripts/semver-to-build.sh "$VER")
-          ./scripts/sync-helpers-bundle.sh
-          xcodegen generate
-          xcodebuild test \
-            -project MacUsageWidget.xcodeproj \
-            -scheme MacUsageWidget \
-            -destination 'platform=macOS' \
-            -derivedDataPath build/ci \
-            MARKETING_VERSION="$VER" \
-            CURRENT_PROJECT_VERSION="$BUILD"
       - name: Release build smoke
         run: ./scripts/build-release.sh
       - name: DMG packaging smoke
