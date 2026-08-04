@@ -1,0 +1,8 @@
+{
+  "model": { "display_name": "Opus 5" },
+  "workspace": { "current_dir": "/Users/dmitry/Projects/Experiments/mac-usage-widget" },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 19.4, "resets_at": 1785823140 },
+    "seven_day": { "used_percentage": 73.2, "resets_at": 1786143540 }
+  }
+}
