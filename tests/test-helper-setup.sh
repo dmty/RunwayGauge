@@ -68,12 +68,16 @@ make_stub_helpers "$SRC" 0 0
 check_exit "spaces in paths" 0 "$(run_bootstrap "$SRC" "$DEST")"
 
 echo "helper-setup: partial and failure exit codes"
-SRC="$SANDBOX/src-codes"
-DEST="$SANDBOX/dest-codes"
+SRC="$SANDBOX/src-exit10"
+DEST="$SANDBOX/dest-exit10"
 make_stub_helpers "$SRC" 1 0
 check_exit "exit 10 statusline only" 10 "$(run_bootstrap "$SRC" "$DEST")"
+SRC="$SANDBOX/src-exit11"
+DEST="$SANDBOX/dest-exit11"
 make_stub_helpers "$SRC" 0 1
 check_exit "exit 11 poller only" 11 "$(run_bootstrap "$SRC" "$DEST")"
+SRC="$SANDBOX/src-exit12"
+DEST="$SANDBOX/dest-exit12"
 make_stub_helpers "$SRC" 1 1
 check_exit "exit 12 both failed" 12 "$(run_bootstrap "$SRC" "$DEST")"
 
