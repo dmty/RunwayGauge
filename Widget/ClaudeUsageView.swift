@@ -39,6 +39,8 @@ struct ClaudeUsageView: View {
                     .font(.system(size: 9, weight: .bold))
                     .kerning(0.6)
                     .foregroundStyle(.tertiary)
+                    // Leave room for cycle + settings controls in the top-trailing corner.
+                    .padding(.trailing, 44)
             }
             ForEach(record.windows, id: \.id) { window in
                 UsageBar(

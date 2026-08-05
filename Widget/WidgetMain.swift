@@ -34,21 +34,35 @@ struct UsageWidgetEntryView: View {
     var entry: UsageEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let label = entry.accountLabel {
-                Text(label).font(.caption2).bold()
-            }
-            content
-            if entry.pinnedAccountCount >= 2 {
-                Button(intent: CycleAccountIntent()) {
-                    Label("Next account", systemImage: "arrow.triangle.2.circlepath")
-                        .labelStyle(.iconOnly)
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .overlay(alignment: .topTrailing) {
+                HStack(spacing: 2) {
+                    if entry.pinnedAccountCount >= 2 {
+                        Button(intent: CycleAccountIntent()) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 18, height: 18)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Show next pinned account")
+                    }
+                    Button(intent: OpenSettingsIntent()) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open RunwayGauge Settings")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show next pinned account")
+                .padding(.top, 8)
+                .padding(.trailing, 8)
             }
-        }
-        .containerBackground(for: .widget) { Color.black.opacity(0.92) }
+            .containerBackground(for: .widget) { Color.black.opacity(0.92) }
     }
 
     @ViewBuilder
@@ -98,6 +112,7 @@ struct UsageWidget: Widget {
         .configurationDisplayName("Claude Code Usage")
         .description("Session and weekly usage limits.")
         .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
     }
 }
 
