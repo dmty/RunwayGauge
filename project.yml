@@ -7,6 +7,15 @@ options:
   fileTypes:
     icon:
       file: true
+schemes:
+  UsageWidgetTests:
+    build:
+      targets:
+        UsageWidget: all
+        UsageWidgetTests: [test]
+    test:
+      targets:
+        - UsageWidgetTests
 settings:
   base:
     SWIFT_VERSION: '6.0'
@@ -25,6 +34,7 @@ targets:
     platform: macOS
     sources:
       - path: App
+      - path: Shared/CycleAccountIntent.swift
       - path: AppIcon.icon
       - path: scripts/helpers-bundle/Helpers
         type: folder
@@ -48,6 +58,7 @@ targets:
     platform: macOS
     sources:
       - Widget
+      - path: Shared/CycleAccountIntent.swift
     dependencies:
       - package: UsageCore
         product: UsageCore
@@ -56,3 +67,28 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.RunwayGauge.UsageWidget
         CODE_SIGN_ENTITLEMENTS: Widget/UsageWidget.entitlements
         INFOPLIST_FILE: Widget/Info.plist
+  RunwayGaugeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - AppTests
+    dependencies:
+      - target: RunwayGauge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.RunwayGaugeTests
+        GENERATE_INFOPLIST_FILE: 'YES'
+  UsageWidgetTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - WidgetTests
+      - path: Widget/UsageTimeline.swift
+    dependencies:
+      - target: UsageWidget
+      - package: UsageCore
+        product: UsageCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirabilia.RunwayGauge.UsageWidgetTests
+        GENERATE_INFOPLIST_FILE: 'YES'
