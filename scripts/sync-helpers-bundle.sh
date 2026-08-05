@@ -2,19 +2,34 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="$ROOT/scripts/helpers-bundle/Helpers"
+
+RUNTIME_HELPERS=(
+  install-statusline.sh
+  uninstall-statusline.sh
+  install-poller.sh
+  statusline-wrapper.sh
+  write-claude-usage.sh
+  poll-claude-usage.sh
+  com.mirabilia.runwaygauge.claudeusage.plist
+  lib/accounts.sh
+  lib/claude-config.sh
+  lib/helper-state.sh
+  lib/paths.sh
+  lib/runtime-env.sh
+  lib/usage-commit.sh
+)
+
+if [[ "${1:-}" == "--list" ]]; then
+  printf '%s\n' "${RUNTIME_HELPERS[@]}"
+  exit 0
+fi
+
 rm -rf "$DEST"
 mkdir -p "$DEST/lib"
-FILES=(
-  install-statusline.sh uninstall-statusline.sh install-poller.sh
-  statusline-wrapper.sh write-claude-usage.sh poll-claude-usage.sh
-)
-for f in "${FILES[@]}"; do
-  cp "$ROOT/scripts/$f" "$DEST/$f"
-  chmod 755 "$DEST/$f"
-done
-cp "$ROOT/scripts/com.mirabilia.runwaygauge.claudeusage.plist" "$DEST/"
-chmod 644 "$DEST/com.mirabilia.runwaygauge.claudeusage.plist"
-for f in claude-config.sh paths.sh runtime-env.sh; do
-  cp "$ROOT/scripts/lib/$f" "$DEST/lib/$f"
-  chmod 644 "$DEST/lib/$f"
+for relative in "${RUNTIME_HELPERS[@]}"; do
+  cp "$ROOT/scripts/$relative" "$DEST/$relative"
+  case "$relative" in
+    lib/*|*.plist) chmod 644 "$DEST/$relative" ;;
+    *) chmod 755 "$DEST/$relative" ;;
+  esac
 done

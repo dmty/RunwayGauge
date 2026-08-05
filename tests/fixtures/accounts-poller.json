@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "revision": 1,
+  "prefs": {
+    "selectedAccountId": "acc_secondary",
+    "rotateEnabled": false,
+    "rotateIntervalSec": 900
+  },
+  "accounts": [
+    {
+      "id": "acc_primary",
+      "label": "Primary",
+      "sourceKind": "claude-oauth",
+      "pinned": true,
+      "credentials": {
+        "configDir": "/tmp/primary",
+        "keychain": { "service": "shared-service", "account": "primary-user" }
+      }
+    },
+    {
+      "id": "acc_secondary",
+      "label": "Secondary",
+      "sourceKind": "claude-oauth",
+      "pinned": true,
+      "credentials": {
+        "configDir": "/tmp/secondary",
+        "keychain": { "service": "shared-service", "account": "secondary-user" }
+      }
+    }
+  ]
+}
