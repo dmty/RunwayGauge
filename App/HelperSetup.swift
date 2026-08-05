@@ -1,12 +1,23 @@
 import Foundation
+import UsageCore
 
 struct SetupResult: Sendable {
     var succeeded: Bool
     var output: String
 }
 
+struct HelperDiagnostics: Sendable {
+    var launchAgentInstalled: Bool
+    var installedDirectory: String
+    var installedDirectoryExists: Bool
+    var bundledHelpersAvailable: Bool
+    var configuredFingerprint: String?
+    var hasLegacyUsageWarning: Bool
+}
+
 enum HelperSetup {
     private static let launchAgentPlistName = "com.mirabilia.runwaygauge.claudeusage.plist"
+    private static let configuredFingerprintKey = "helperConfiguredFingerprint"
     private static let jqSearchPaths = [
         "/opt/homebrew/bin/jq",
         "/usr/local/bin/jq",
@@ -65,6 +76,57 @@ enum HelperSetup {
         }.value
     }
 
+    static func fingerprint(
+        for registry: AccountRegistry,
+        home: URL? = nil
+    ) -> String {
+        let configDirectories = Set(registry.accounts.compactMap { account -> String? in
+            guard account.sourceKind == .claudeOAuth,
+                  let configDir = account.credentials.configDir else {
+                return nil
+            }
+            return AccountValidation.normalizePath(configDir, home: home)
+        })
+        return (["helper-config-v1"] + configDirectories.sorted())
+            .joined(separator: "\n")
+    }
+
+    static func markConfigured(registry: AccountRegistry) {
+        UserDefaults.standard.set(
+            fingerprint(for: registry),
+            forKey: configuredFingerprintKey
+        )
+    }
+
+    static func needsReconfiguration(
+        registry: AccountRegistry,
+        diagnostics: HelperDiagnostics
+    ) -> Bool {
+        diagnostics.hasLegacyUsageWarning
+            || diagnostics.configuredFingerprint != fingerprint(for: registry)
+    }
+
+    static func diagnostics(
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL? = nil
+    ) -> HelperDiagnostics {
+        return HelperDiagnostics(
+            launchAgentInstalled: isInstalled(
+                fileManager: fileManager,
+                homeDirectoryURL: homeDirectoryURL
+            ),
+            installedDirectory: installDirectoryURL.path,
+            installedDirectoryExists: fileManager.fileExists(atPath: installDirectoryURL.path),
+            bundledHelpersAvailable: bundledHelpersURL != nil,
+            configuredFingerprint: UserDefaults.standard.string(
+                forKey: configuredFingerprintKey
+            ),
+            hasLegacyUsageWarning: AccountStore.hasLegacyUsageWarning(
+                home: homeDirectoryURL
+            )
+        )
+    }
+
     static func findJQ(fileManager: FileManager = .default) -> URL? {
         jqSearchPaths
             .map { URL(fileURLWithPath: $0) }
@@ -104,43 +166,21 @@ enum HelperSetup {
         let capped = capOutput(rawOutput)
         let status = process.terminationStatus
 
-        let summary: String
-        let succeeded: Bool
-        switch status {
-        case 0:
-            summary = "Setup completed successfully."
-            succeeded = true
-        case 10:
-            summary = "Setup partially failed: statusline installation failed."
-            succeeded = false
-        case 11:
-            summary = "Setup partially failed: poller installation failed."
-            succeeded = false
-        case 12:
-            summary = "Setup failed: both statusline and poller installation failed."
-            succeeded = false
-        default:
-            summary = "Setup failed (exit code \(status))."
-            succeeded = false
-        }
-
+        let (summary, succeeded) = exitSummaries[status]
+            ?? ("Setup failed (exit code \(status)).", false)
         return SetupResult(succeeded: succeeded, output: "\(summary)\n\n\(capped)")
     }
 
+    private static let exitSummaries: [Int32: (String, Bool)] = [
+        0: ("Setup completed successfully.", true),
+        10: ("Setup partially failed: statusline installation failed.", false),
+        11: ("Setup partially failed: poller installation failed.", false),
+        12: ("Setup failed: both statusline and poller installation failed.", false),
+    ]
+
     private static func capOutput(_ output: String) -> String {
-        guard let data = output.data(using: .utf8), data.count > maxOutputBytes else {
-            return output
-        }
-        var bytes = Array(data.suffix(maxOutputBytes))
-        while let first = bytes.first, (first & 0xC0) == 0x80 {
-            bytes.removeFirst()
-        }
-        while !bytes.isEmpty {
-            if let decoded = String(bytes: bytes, encoding: .utf8) {
-                return decoded
-            }
-            bytes.removeLast()
-        }
-        return ""
+        // ponytail: char truncate; byte-safe trim if installer logs clip mid-emoji
+        guard output.count > maxOutputBytes else { return output }
+        return String(output.suffix(maxOutputBytes))
     }
 }
