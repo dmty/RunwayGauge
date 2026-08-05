@@ -24,7 +24,7 @@ public struct UsageStore: Sendable {
     private static let containerRelativePath =
         "Library/Containers/\(widgetContainerID)/Data/\(appSupportRelativePath)"
 
-    private static func realUserHome() -> URL {
+    internal static func realUserHome() -> URL {
         #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         if let passwd = getpwuid(getuid()) {
             return URL(fileURLWithPath: String(cString: passwd.pointee.pw_dir))
@@ -57,6 +57,21 @@ public struct UsageStore: Sendable {
         home: URL? = nil
     ) -> URL {
         defaultDirectory(home: home).appending(path: "\(source).json")
+    }
+
+    public static func usageURL(accountId: String, home: URL? = nil) throws -> URL {
+        try AccountValidation.validateID(accountId)
+        return defaultDirectory(home: home).appending(path: "usage-\(accountId).json")
+    }
+
+    public static func load(accountId: String, home: URL? = nil) -> UsageLoadResult {
+        guard let url = try? usageURL(accountId: accountId, home: home) else { return .unreadable }
+        switch load(from: url) {
+        case .missing: return .missing
+        case .unreadable: return .unreadable
+        case .record(let record):
+            return record.accountId == accountId ? .record(record) : .unreadable
+        }
     }
 
     public static func load(from url: URL) -> UsageLoadResult {

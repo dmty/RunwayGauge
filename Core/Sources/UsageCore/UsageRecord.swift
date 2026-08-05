@@ -19,12 +19,20 @@ public struct UsageWindow: Sendable, Equatable {
 public struct UsageRecord: Sendable, Equatable {
     public static let currentSchema = 1
 
+    public let accountId: String?
     public let source: String
     public let updatedAt: Date
     public let origin: String
     public let windows: [UsageWindow]
 
-    public init(source: String, updatedAt: Date, origin: String, windows: [UsageWindow]) {
+    public init(
+        accountId: String? = nil,
+        source: String,
+        updatedAt: Date,
+        origin: String,
+        windows: [UsageWindow]
+    ) {
+        self.accountId = accountId
         self.source = source
         self.updatedAt = updatedAt
         self.origin = origin
@@ -55,6 +63,7 @@ extension UsageRecord {
             }
         }
         let schema: Int
+        let accountId: String?
         let source: String
         let updatedAt: Double
         let origin: String
@@ -62,6 +71,7 @@ extension UsageRecord {
 
         func asUsageRecord() -> UsageRecord {
             UsageRecord(
+                accountId: accountId,
                 source: source,
                 updatedAt: Date(timeIntervalSince1970: updatedAt),
                 origin: origin,
