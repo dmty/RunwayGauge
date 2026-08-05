@@ -29,28 +29,54 @@ This installs `RunwayGauge.app` in `/Applications` and launches it once so
 the widget registers. Add the small or medium widget from Notification Center
 → Edit Widgets.
 
-## Feed it data
+## Accounts and data collection
 
-    ./scripts/install-statusline.sh    # records usage while Claude Code runs
-    ./scripts/install-poller.sh        # refreshes every 10 min while idle
+Open **Settings** in RunwayGauge to discover Claude accounts or add one with
+its exact config-directory path and Keychain service/account. Custom Claude
+directory names are not assumed or hardcoded: add the directory explicitly,
+then run **Set up helpers**. After adding, editing, or removing a config
+directory, run **Reconfigure helpers** so the statusline and poller match the
+current registry.
 
-The statusline installer preserves an existing statusline command and backs up
-each `settings.json`. Undo it with:
+Each account reports separate source and usage health:
 
-    ./scripts/uninstall-statusline.sh
+- **Ready** has both a config directory and Keychain credentials, so statusline
+  and idle polling are available.
+- **Statusline only** (config-only) records while Claude Code runs but cannot
+  poll while idle.
+- **Poller only** (Keychain-only) can refresh while idle but has no config
+  directory in which to install the statusline.
 
-The data file is in the widget extension container:
+Pin accounts to include them in the widget, then select one in Settings or use
+the widget's cycle control. Selection is shared by every placed RunwayGauge
+widget. Optional rotation advances through pinned accounts on a best-effort
+WidgetKit timeline; macOS may deliver entries late. The minimum interval is
+five minutes (300 seconds).
 
-    ~/Library/Containers/com.mirabilia.RunwayGauge.UsageWidget/Data/Library/Application Support/RunwayGauge/claude-code.json
+The setup button copies the bundled helpers to Application Support, preserves
+and backs up existing Claude `settings.json` statuslines, and installs the
+background poller. The registry and per-account usage files live in the widget
+extension container:
 
-The host app is intentionally unsandboxed so it can show whether this file is
-available and current. The widget extension remains sandboxed.
+    ~/Library/Containers/com.mirabilia.RunwayGauge.UsageWidget/Data/Library/Application Support/RunwayGauge/accounts.json
+    ~/Library/Containers/com.mirabilia.RunwayGauge.UsageWidget/Data/Library/Application Support/RunwayGauge/usage-acc_<id>.json
+
+On first multi-account setup, an existing unscoped `claude-code.json` is moved
+to `claude-code.legacy.json`. Its account provenance is ambiguous, so it is
+archived rather than displayed under a guessed account.
+
+The host app is intentionally unsandboxed so it can manage account settings,
+inspect health, and install helpers. The widget extension remains sandboxed.
 
 ## Tests
 
-    (cd Core && swift test)     # all logic
-    ./tests/test-writer.sh      # statusline writer and wrapper
-    ./tests/test-poller.sh      # poller mapping
+    (cd Core && swift test)
+    ./tests/test-writer.sh
+    ./tests/test-poller.sh
+    ./tests/test-helper-lifecycle.sh
+    ./tests/test-helper-setup.sh
+    ./tests/test-helper-bundle-sync.sh
+    ./tests/test-cap-output.sh
 
 ## Adding another source
 
