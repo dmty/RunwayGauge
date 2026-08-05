@@ -5,26 +5,37 @@ set -uo pipefail
 
 # shellcheck source=lib/runtime-env.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/runtime-env.sh"
+# shellcheck source=lib/paths.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/paths.sh"
+# shellcheck source=lib/accounts.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/accounts.sh"
+# shellcheck source=lib/usage-commit.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/usage-commit.sh"
 
 MIN_WRITE_INTERVAL=30
+config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
+account_resolve_claude "$ACCOUNTS_FILE" "$config_dir" || exit 0
+target="$(usage_file_for_account "$ACCOUNT_ID")" || exit 0
 mkdir -p "$USAGE_DIR" || exit 0
 
 # The statusline re-renders constantly; rewriting on every render is pointless.
-if [[ -f "$USAGE_FILE" ]]; then
-  age=$(( $(date +%s) - $(stat -f %m "$USAGE_FILE") ))
+if [[ -f "$target" ]]; then
+  age=$(( $(date +%s) - $(stat -f %m "$target") ))
   (( age < MIN_WRITE_INTERVAL )) && exit 0
 fi
 
 input=$(cat)
-now=$(date +%s)
+observed_at=$(date +%s)
 
-out=$(printf '%s' "$input" | jq -c --argjson now "$now" '
+out=$(printf '%s' "$input" | jq -c \
+  --arg accountId "$ACCOUNT_ID" \
+  --argjson observedAt "$observed_at" '
   {
     schema: 1,
+    accountId: $accountId,
     source: "claude-code",
-    updatedAt: $now,
+    updatedAt: $observedAt,
     origin: "statusline",
     windows: [
       (.rate_limits.five_hour | select(. != null)
@@ -34,16 +45,10 @@ out=$(printf '%s' "$input" | jq -c --argjson now "$now" '
     ]
   }') || exit 0
 
-# rate_limits is absent until the first API response of a session. Writing an
-# empty record then would erase numbers the widget is still usefully showing.
-if [[ "$(printf '%s' "$out" | jq '.windows | length')" -eq 0 && -s "$USAGE_FILE" ]]; then
-  exit 0
-fi
+candidate=$(mktemp "$USAGE_DIR/.usage-${ACCOUNT_ID}.candidate.XXXXXX") || exit 0
+printf '%s\n' "$out" > "$candidate" || { rm -f "$candidate"; exit 0; }
 
-tmp=$(mktemp "$USAGE_DIR/.claude-code.XXXXXX") || exit 0
-if printf '%s\n' "$out" > "$tmp"; then
-  mv "$tmp" "$USAGE_FILE"
-else
-  rm -f "$tmp"
-fi
+# The helper re-reads the latest same-account record while holding the lock,
+# rejects stale/empty candidates, and atomically replaces from beside target.
+usage_commit "$target" "$candidate" "$MIN_WRITE_INTERVAL" >/dev/null 2>&1 || true
 exit 0

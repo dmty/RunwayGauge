@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "revision": 7,
+  "prefs": {
+    "selectedAccountId": "acc_primary",
+    "rotateEnabled": false,
+    "rotateIntervalSec": 900
+  },
+  "accounts": [
+    {
+      "id": "acc_primary",
+      "label": "Primary",
+      "sourceKind": "claude-oauth",
+      "pinned": true,
+      "credentials": {
+        "configDir": "~/.claude",
+        "keychain": {
+          "service": "Claude Code-credentials",
+          "account": "primary-user"
+        },
+        "nonSecretFields": {}
+      }
+    },
+    {
+      "id": "acc_secondary",
+      "label": "Secondary",
+      "sourceKind": "claude-oauth",
+      "pinned": true,
+      "credentials": {
+        "configDir": "/tmp/runway-gauge-secondary",
+        "keychain": {
+          "service": "Claude Code-credentials",
+          "account": "secondary-user"
+        },
+        "nonSecretFields": {}
+      }
+    }
+  ]
+}
