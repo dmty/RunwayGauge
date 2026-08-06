@@ -5,8 +5,11 @@ enum DiscoveredAccountMerge {
     static func merge(
         _ discovered: [DiscoveredAccount],
         into registry: inout AccountRegistry,
-        home: URL
+        home: URL,
+        now: Date = Date()
     ) {
+        pruneStaleKeychainAccounts(discovered, from: &registry, now: now)
+
         for item in discovered {
             if registry.accounts.contains(where: {
                 $0.sourceKind == item.sourceKind && $0.credentials == item.credentials
@@ -53,15 +56,59 @@ enum DiscoveredAccountMerge {
         }
     }
 
+    /// Drop Keychain-only rows whose credentials disappeared, and clear dead
+    /// Keychain refs on accounts that still have a config directory.
+    private static func pruneStaleKeychainAccounts(
+        _ discovered: [DiscoveredAccount],
+        from registry: inout AccountRegistry,
+        now: Date
+    ) {
+        let liveKeychains = Set(
+            discovered.compactMap { item -> String? in
+                item.credentials.keychain.map(fingerprint(for:))
+            }
+        )
+
+        var index = 0
+        while index < registry.accounts.count {
+            let account = registry.accounts[index]
+            guard account.sourceKind == .claudeOAuth,
+                  let keychain = account.credentials.keychain
+            else {
+                index += 1
+                continue
+            }
+            if liveKeychains.contains(fingerprint(for: keychain)) {
+                index += 1
+                continue
+            }
+
+            let hasConfig = account.credentials.configDir.map {
+                !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            } ?? false
+
+            if hasConfig {
+                registry.accounts[index].credentials.keychain = nil
+                index += 1
+            } else {
+                try? AccountSelection.deleteAccount(id: account.id, now: now, in: &registry)
+            }
+        }
+    }
+
+    private static func fingerprint(for keychain: KeychainReference) -> String {
+        let service = keychain.service.trimmingCharacters(in: .whitespacesAndNewlines)
+        let account = keychain.account?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return "\(service)\0\(account)"
+    }
+
     private static func sameKeychain(
         _ lhs: KeychainReference?,
         _ rhs: KeychainReference
     ) -> Bool {
         guard let lhs else { return false }
-        return lhs.service.trimmingCharacters(in: .whitespacesAndNewlines)
-                == rhs.service.trimmingCharacters(in: .whitespacesAndNewlines)
-            && lhs.account?.trimmingCharacters(in: .whitespacesAndNewlines)
-                == rhs.account?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return fingerprint(for: lhs) == fingerprint(for: rhs)
     }
 }
 

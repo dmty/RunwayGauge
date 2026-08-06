@@ -146,6 +146,89 @@ struct AccountHostTests {
         #expect(value.accounts[0].credentials.configDir == home.appending(path: ".claude").path)
     }
 
+    @Test("refresh removes Keychain-only accounts missing from discovery")
+    func discoveryPrunesStaleKeychainOnlyAccounts() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        var value = AccountRegistry(
+            revision: 4,
+            prefs: AccountPreferences(selectedAccountId: "acc_stale"),
+            accounts: [
+                Account(
+                    id: "acc_stale",
+                    label: "Gone",
+                    sourceKind: .claudeOAuth,
+                    pinned: true,
+                    credentials: AccountCredentials(
+                        keychain: KeychainReference(
+                            service: "Claude Code-credentials-deadbeef",
+                            account: "dmitry"
+                        )
+                    )
+                ),
+                Account(
+                    id: "acc_live",
+                    label: "Live",
+                    sourceKind: .claudeOAuth,
+                    pinned: true,
+                    credentials: AccountCredentials(
+                        keychain: KeychainReference(
+                            service: "Claude Code-credentials",
+                            account: "dmitry"
+                        )
+                    )
+                ),
+            ]
+        )
+        let discovered = DiscoveredAccount(
+            label: "Live",
+            sourceKind: .claudeOAuth,
+            credentials: AccountCredentials(
+                keychain: KeychainReference(
+                    service: "Claude Code-credentials",
+                    account: "dmitry"
+                )
+            )
+        )
+
+        DiscoveredAccountMerge.merge([discovered], into: &value, home: home, now: Date(timeIntervalSince1970: 100))
+
+        #expect(value.accounts.map(\.id) == ["acc_live"])
+        #expect(value.prefs.selectedAccountId == "acc_live")
+    }
+
+    @Test("refresh clears dead Keychain refs but keeps config accounts")
+    func discoveryClearsStaleKeychainOnConfigAccounts() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        var value = AccountRegistry(
+            revision: 4,
+            prefs: AccountPreferences(),
+            accounts: [
+                Account(
+                    id: "acc_config",
+                    label: "Config",
+                    sourceKind: .claudeOAuth,
+                    pinned: false,
+                    credentials: AccountCredentials(
+                        configDir: "~/.claude-v",
+                        keychain: KeychainReference(
+                            service: "Claude Code-credentials-deadbeef",
+                            account: "dmitry"
+                        )
+                    )
+                ),
+            ]
+        )
+
+        DiscoveredAccountMerge.merge([], into: &value, home: home)
+
+        #expect(value.accounts.count == 1)
+        #expect(value.accounts[0].id == "acc_config")
+        #expect(value.accounts[0].credentials.configDir == "~/.claude-v")
+        #expect(value.accounts[0].credentials.keychain == nil)
+    }
+
     @Test("helper fingerprint ignores registry revision and account presentation")
     func helperFingerprintTracksOnlyClaudeConfigDirectories() {
         let home = URL(fileURLWithPath: "/Users/example")
