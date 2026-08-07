@@ -41,10 +41,7 @@ struct UsageCommitTests {
         )
     }
 
-    private func seed(
-        _ record: UsageRecord,
-        at url: URL
-    ) throws {
+    private func seed(_ record: UsageRecord, at url: URL) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -57,8 +54,7 @@ struct UsageCommitTests {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = targetURL(in: dir)
-        let existing = record(updatedAt: baseTime, windows: [window()])
-        try seed(existing, at: url)
+        try seed(record(updatedAt: baseTime, windows: [window()]), at: url)
 
         let older = record(
             updatedAt: baseTime.addingTimeInterval(-10),
@@ -164,7 +160,6 @@ struct UsageCommitTests {
         try seed(record(updatedAt: baseTime, windows: [window()]), at: url)
 
         let now = baseTime.addingTimeInterval(5)
-        // mtime recent relative to `now`, and older than candidate updatedAt.
         try FileManager.default.setAttributes(
             [.modificationDate: now.addingTimeInterval(-2)],
             ofItemAtPath: url.path
@@ -182,7 +177,6 @@ struct UsageCommitTests {
                 now: now
             ) == false
         )
-
         #expect(
             try UsageCommit.commit(
                 record: newer,
