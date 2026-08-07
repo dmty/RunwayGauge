@@ -52,11 +52,26 @@ public enum UsageCommit {
         if fileManager.fileExists(atPath: url.path) {
             guard case .record(let existing) = UsageStore.load(from: url),
                   existing.accountId == accountId,
-                  record.updatedAt > existing.updatedAt,
                   !(record.windows.isEmpty && !existing.windows.isEmpty) else {
                 return false
             }
-            if minInterval > 0,
+
+            let isNewerData = record.updatedAt > existing.updatedAt
+            // Failed polls keep last-good updatedAt; allow writing when only
+            // fetchStatus advanced (same windows + same updatedAt).
+            let isFetchStatusOnly =
+                !isNewerData
+                && record.updatedAt == existing.updatedAt
+                && record.windows == existing.windows
+                && record.fetchStatus != nil
+                && (existing.fetchStatus.map { record.fetchStatus!.updatedAt > $0.updatedAt } ?? true)
+
+            guard isNewerData || isFetchStatusOnly else {
+                return false
+            }
+
+            if isNewerData,
+               minInterval > 0,
                let mtime = (try? fileManager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
                now.timeIntervalSince(mtime) < minInterval,
                mtime < record.updatedAt {

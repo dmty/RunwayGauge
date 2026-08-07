@@ -2,8 +2,11 @@ import Foundation
 import UsageCore
 
 enum AccountEnumeration {
-    static func pollTargets(from url: URL = HelperPaths.accountsURL()) throws -> [PollTarget] {
-        PollTargets.list(from: try AccountStore.load(from: url))
+    static func pollTargets(
+        from url: URL = HelperPaths.accountsURL(),
+        home: URL? = nil
+    ) throws -> [PollTarget] {
+        PollTargets.list(from: try AccountStore.loadValidated(from: url, home: home))
     }
 
     static func resolveAccountId(
@@ -16,7 +19,7 @@ enum AccountEnumeration {
             try AccountValidation.validateID(explicit)
             return explicit
         }
-        let registry = try AccountStore.load(from: accountsURL)
+        let registry = try AccountStore.loadValidated(from: accountsURL, home: home)
         let trimmed = configDirEnv?.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedDir: String
         if let trimmed, !trimmed.isEmpty {

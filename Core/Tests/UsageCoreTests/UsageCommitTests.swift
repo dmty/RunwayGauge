@@ -186,4 +186,47 @@ struct UsageCommitTests {
             ) == true
         )
     }
+
+    @Test("commit accepts fetchStatus-only update with same updatedAt")
+    func acceptsFetchStatusOnly() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = targetURL(in: dir)
+        let windows = [window()]
+        try seed(
+            UsageRecord(
+                accountId: accountId,
+                source: "claude-code",
+                updatedAt: baseTime,
+                origin: "poll",
+                windows: windows,
+                fetchStatus: FetchStatus(state: .ok, httpStatus: 200, updatedAt: baseTime)
+            ),
+            at: url
+        )
+
+        let failed = UsageRecord(
+            accountId: accountId,
+            source: "claude-code",
+            updatedAt: baseTime,
+            origin: "poll",
+            windows: windows,
+            fetchStatus: FetchStatus(
+                state: .rateLimited,
+                message: "rate limited",
+                retryAfterAt: baseTime.addingTimeInterval(300),
+                httpStatus: 429,
+                updatedAt: baseTime.addingTimeInterval(60)
+            )
+        )
+        #expect(try UsageCommit.commit(record: failed, to: url) == true)
+
+        guard case .record(let written) = UsageStore.load(from: url) else {
+            Issue.record("expected fetchStatus update"); return
+        }
+        #expect(written.updatedAt == baseTime)
+        #expect(written.fetchStatus?.state == .rateLimited)
+        #expect(written.fetchStatus?.updatedAt == baseTime.addingTimeInterval(60))
+        #expect(written.windows == windows)
+    }
 }

@@ -67,27 +67,50 @@ struct PollPolicyTests {
         #expect(record?.windows.isEmpty == false)
     }
 
-    @Test("429 preserves windows and sets rateLimited cooldown")
+    @Test("429 preserves windows and last-good updatedAt")
     func rateLimited() {
+        let lastGood = now.addingTimeInterval(-500)
+        let attempt = now
         let existing = UsageRecord(
-            accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "poll",
+            accountId: "acc_test", source: "claude-code", updatedAt: lastGood, origin: "poll",
             windows: [UsageWindow(id: "five_hour", label: "Session", usedPercent: 10, resetsAt: now.addingTimeInterval(3600))]
         )
         let record = PollPolicy.makePollRecord(
-            accountId: "acc_test", status: 429, body: Data(), retryAfter: 120, existing: existing, observedAt: now
+            accountId: "acc_test", status: 429, body: Data(), retryAfter: 120, existing: existing, observedAt: attempt
         )
         #expect(record?.windows.first?.usedPercent == 10)
+        #expect(record?.updatedAt == lastGood)
         #expect(record?.fetchStatus?.state == .rateLimited)
-        #expect(record?.fetchStatus?.retryAfterAt == now.addingTimeInterval(120))
+        #expect(record?.fetchStatus?.updatedAt == attempt)
+        #expect(record?.fetchStatus?.retryAfterAt == attempt.addingTimeInterval(120))
     }
 
-    @Test("non-429 errors set failed")
+    @Test("failed poll keeps last-good updatedAt")
+    func failedKeepsLastGoodTimestamp() {
+        let lastGood = now.addingTimeInterval(-800)
+        let attempt = now
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: lastGood, origin: "poll",
+            windows: [UsageWindow(id: "seven_day", label: "Week", usedPercent: 55, resetsAt: now.addingTimeInterval(7200))]
+        )
+        let record = PollPolicy.makePollRecord(
+            accountId: "acc_test", status: 500, body: Data(), retryAfter: nil, existing: existing, observedAt: attempt
+        )
+        #expect(record?.updatedAt == lastGood)
+        #expect(record?.windows.first?.usedPercent == 55)
+        #expect(record?.fetchStatus?.state == .failed)
+        #expect(record?.fetchStatus?.updatedAt == attempt)
+        #expect(record?.fetchStatus?.httpStatus == 500)
+    }
+
+    @Test("non-429 errors without existing use attempt time")
     func failed() {
         let record = PollPolicy.makePollRecord(
             accountId: "acc_test", status: 500, body: Data(), retryAfter: nil, existing: nil, observedAt: now
         )
         #expect(record?.fetchStatus?.state == .failed)
         #expect(record?.fetchStatus?.httpStatus == 500)
+        #expect(record?.updatedAt == now)
         #expect(record?.windows.isEmpty == true)
     }
 
@@ -100,6 +123,31 @@ struct PollPolicyTests {
             windows: [window], fetchStatus: FetchStatus(state: .rateLimited, updatedAt: now)
         )
         #expect(PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing).fetchStatus?.state == .ok)
+    }
+
+    @Test("statusline write merges OAuth-only windows by id")
+    func statuslinePreservesOAuthOnlyWindows() {
+        let resets = now.addingTimeInterval(3600)
+        let mapped = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "statusline",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 22, resetsAt: resets),
+                UsageWindow(id: "seven_day", label: "Week", usedPercent: 40, resetsAt: resets),
+            ]
+        )
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now.addingTimeInterval(-100), origin: "poll",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 10, resetsAt: resets),
+                UsageWindow(id: "seven_day_sonnet", label: "Sonnet", usedPercent: 70, resetsAt: resets),
+                UsageWindow(id: "extra_usage", label: "Extra usage", usedPercent: 5, resetsAt: resets, kind: "extra_usage"),
+            ]
+        )
+        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing)
+        #expect(prepared.windows.map(\.id) == ["five_hour", "seven_day", "seven_day_sonnet", "extra_usage"])
+        #expect(prepared.windows.first { $0.id == "five_hour" }?.usedPercent == 22)
+        #expect(prepared.windows.first { $0.id == "seven_day_sonnet" }?.usedPercent == 70)
+        #expect(prepared.windows.first { $0.id == "extra_usage" }?.usedPercent == 5)
     }
 }
 
@@ -151,10 +199,11 @@ struct UsagePollerTests {
         #expect(step == .skipped && fake.callCount == 0)
     }
 
-    @Test("429 commits rateLimited with preserved windows")
+    @Test("429 commits rateLimited with preserved windows and last-good updatedAt")
     func rateLimitedCommit() async throws {
         let (dir, url) = try tempUsageURL(age: -900, usedPercent: 42)
         defer { try? FileManager.default.removeItem(at: dir) }
+        let lastGood = now.addingTimeInterval(-900)
         let step = await UsagePoller(fetcher: FakeFetcher(status: 429, retryAfter: 90)).poll(
             accountId: accountId, accessToken: "test-token", usageURL: url, force: true, now: now
         )
@@ -164,6 +213,8 @@ struct UsagePollerTests {
         }
         #expect(record.fetchStatus?.state == .rateLimited)
         #expect(record.windows.first?.usedPercent == 42)
+        #expect(record.updatedAt == lastGood)
+        #expect(record.fetchStatus?.updatedAt == now)
         #expect(record.fetchStatus?.retryAfterAt == now.addingTimeInterval(90))
     }
 }

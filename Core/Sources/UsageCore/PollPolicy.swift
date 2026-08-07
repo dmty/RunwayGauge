@@ -58,17 +58,21 @@ public enum PollPolicy {
                 updatedAt: observedAt
             )
         }
+        // Keep last-good windows + updatedAt so Freshness stays stale; attempt time
+        // lives on fetchStatus.updatedAt only.
         return UsageRecord(
             accountId: accountId,
             source: existing?.source ?? "claude-code",
-            updatedAt: observedAt,
-            origin: "poll",
+            updatedAt: existing?.updatedAt ?? observedAt,
+            origin: existing?.origin ?? "poll",
             windows: existing?.windows ?? [],
             plan: existing?.plan,
             fetchStatus: fetchStatus
         )
     }
 
+    /// Merge statusline windows into an existing poll record by id.
+    /// Statusline values win on id collision; OAuth-only ids are retained.
     public static func prepareStatuslineRecord(
         mapped: UsageRecord,
         existing: UsageRecord?
@@ -78,11 +82,27 @@ public enum PollPolicy {
             source: mapped.source,
             updatedAt: mapped.updatedAt,
             origin: mapped.origin,
-            windows: mapped.windows,
+            windows: mergeWindows(statusline: mapped.windows, existing: existing?.windows ?? []),
             plan: mapped.plan ?? existing?.plan,
             fetchStatus: existing?.fetchStatus.map { _ in
                 FetchStatus(state: .ok, updatedAt: mapped.updatedAt)
             }
         )
+    }
+
+    public static func mergeWindows(
+        statusline: [UsageWindow],
+        existing: [UsageWindow]
+    ) -> [UsageWindow] {
+        var result: [UsageWindow] = []
+        var seen = Set<String>()
+        for window in statusline {
+            result.append(window)
+            seen.insert(window.id)
+        }
+        for window in existing where !seen.contains(window.id) {
+            result.append(window)
+        }
+        return result
     }
 }
