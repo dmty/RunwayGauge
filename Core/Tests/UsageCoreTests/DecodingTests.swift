@@ -121,13 +121,7 @@ func rejectsPartialWindow() {
     let data = try UsageRecord.encode(original)
     let decoded = try UsageRecord.decode(data)
     #expect(decoded == original)
-    #expect(UsageRecord.currentSchema == 2)
 
     let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-    let encodedSchema = object?["schema"] as? Int
-    #expect(encodedSchema == 2)
-    #expect(decoded.plan == "Max")
-    #expect(decoded.fetchStatus?.state == .rateLimited)
-    #expect(decoded.windows[0].severity == "critical")
-    #expect(decoded.windows[0].kind == "session")
+    #expect(object?["schema"] as? Int == 2)
 }

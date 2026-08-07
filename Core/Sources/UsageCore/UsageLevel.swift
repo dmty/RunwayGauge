@@ -8,20 +8,9 @@ public enum UsageLevel: String, Sendable, Equatable, CaseIterable {
     }
 
     public init(usedPercent: Double, severity: String?) {
-        if let severity {
-            switch severity {
-            case "warning":
-                self = .warning
-                return
-            case "critical":
-                self = .critical
-                return
-            case "normal":
-                self = .normal
-                return
-            default:
-                break
-            }
+        if let severity, let level = Self(rawValue: severity) {
+            self = level
+            return
         }
         switch usedPercent {
         case ..<80: self = .normal

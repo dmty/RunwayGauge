@@ -52,7 +52,6 @@ public struct UsageWindow: Sendable, Equatable {
         self.kind = kind
     }
 
-    /// Percent-only for now; severity-aware display goes through `UsageLevel(usedPercent:severity:)`.
     public var level: UsageLevel { UsageLevel(usedPercent: usedPercent) }
 }
 
@@ -92,10 +91,6 @@ public enum UsageDecodeError: Error, Equatable {
 }
 
 extension UsageRecord {
-    private static func isSupportedSchema(_ schema: Int) -> Bool {
-        schema == 1 || schema == 2
-    }
-
     private struct DTO: Codable {
         struct FetchStatusDTO: Codable {
             let state: FetchStatus.State
@@ -103,24 +98,6 @@ extension UsageRecord {
             let retryAfterAt: Double?
             let httpStatus: Int?
             let updatedAt: Double
-
-            init(from status: FetchStatus) {
-                state = status.state
-                message = status.message
-                retryAfterAt = status.retryAfterAt.map { $0.timeIntervalSince1970 }
-                httpStatus = status.httpStatus
-                updatedAt = status.updatedAt.timeIntervalSince1970
-            }
-
-            func asFetchStatus() -> FetchStatus {
-                FetchStatus(
-                    state: state,
-                    message: message,
-                    retryAfterAt: retryAfterAt.map { Date(timeIntervalSince1970: $0) },
-                    httpStatus: httpStatus,
-                    updatedAt: Date(timeIntervalSince1970: updatedAt)
-                )
-            }
         }
 
         struct Window: Codable {
@@ -130,36 +107,6 @@ extension UsageRecord {
             let resetsAt: Double
             let severity: String?
             let kind: String?
-
-            init(from window: UsageWindow) {
-                id = window.id
-                label = window.label
-                usedPercent = window.usedPercent
-                resetsAt = window.resetsAt.timeIntervalSince1970
-                severity = window.severity
-                kind = window.kind
-            }
-
-            init(from decoder: Decoder) throws {
-                let c = try decoder.container(keyedBy: CodingKeys.self)
-                id = try c.decode(String.self, forKey: .id)
-                label = try c.decode(String.self, forKey: .label)
-                usedPercent = try c.decode(Double.self, forKey: .usedPercent)
-                resetsAt = try c.decode(Double.self, forKey: .resetsAt)
-                severity = try c.decodeIfPresent(String.self, forKey: .severity)
-                kind = try c.decodeIfPresent(String.self, forKey: .kind)
-            }
-
-            func asUsageWindow() -> UsageWindow {
-                UsageWindow(
-                    id: id,
-                    label: label,
-                    usedPercent: usedPercent,
-                    resetsAt: Date(timeIntervalSince1970: resetsAt),
-                    severity: severity,
-                    kind: kind
-                )
-            }
         }
 
         let schema: Int
@@ -177,21 +124,26 @@ extension UsageRecord {
             source = record.source
             updatedAt = record.updatedAt.timeIntervalSince1970
             origin = record.origin
-            windows = record.windows.map(Window.init(from:))
+            windows = record.windows.map {
+                Window(
+                    id: $0.id,
+                    label: $0.label,
+                    usedPercent: $0.usedPercent,
+                    resetsAt: $0.resetsAt.timeIntervalSince1970,
+                    severity: $0.severity,
+                    kind: $0.kind
+                )
+            }
             plan = record.plan
-            fetchStatus = record.fetchStatus.map(FetchStatusDTO.init(from:))
-        }
-
-        init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            schema = try c.decode(Int.self, forKey: .schema)
-            accountId = try c.decodeIfPresent(String.self, forKey: .accountId)
-            source = try c.decode(String.self, forKey: .source)
-            updatedAt = try c.decode(Double.self, forKey: .updatedAt)
-            origin = try c.decode(String.self, forKey: .origin)
-            windows = try c.decode([Window].self, forKey: .windows)
-            plan = try c.decodeIfPresent(String.self, forKey: .plan)
-            fetchStatus = try c.decodeIfPresent(FetchStatusDTO.self, forKey: .fetchStatus)
+            fetchStatus = record.fetchStatus.map {
+                FetchStatusDTO(
+                    state: $0.state,
+                    message: $0.message,
+                    retryAfterAt: $0.retryAfterAt.map(\.timeIntervalSince1970),
+                    httpStatus: $0.httpStatus,
+                    updatedAt: $0.updatedAt.timeIntervalSince1970
+                )
+            }
         }
 
         func asUsageRecord() -> UsageRecord {
@@ -200,26 +152,41 @@ extension UsageRecord {
                 source: source,
                 updatedAt: Date(timeIntervalSince1970: updatedAt),
                 origin: origin,
-                windows: windows.map { $0.asUsageWindow() },
+                windows: windows.map {
+                    UsageWindow(
+                        id: $0.id,
+                        label: $0.label,
+                        usedPercent: $0.usedPercent,
+                        resetsAt: Date(timeIntervalSince1970: $0.resetsAt),
+                        severity: $0.severity,
+                        kind: $0.kind
+                    )
+                },
                 plan: plan,
-                fetchStatus: fetchStatus?.asFetchStatus()
+                fetchStatus: fetchStatus.map {
+                    FetchStatus(
+                        state: $0.state,
+                        message: $0.message,
+                        retryAfterAt: $0.retryAfterAt.map { Date(timeIntervalSince1970: $0) },
+                        httpStatus: $0.httpStatus,
+                        updatedAt: Date(timeIntervalSince1970: $0.updatedAt)
+                    )
+                }
             )
         }
     }
 
     public static func decode(_ data: Data) throws -> UsageRecord {
-        // Schema is read first and separately: an unknown schema must be reported as
-        // such even when the rest of the payload no longer matches this DTO.
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let schema = object["schema"] as? Int,
-           !isSupportedSchema(schema) {
+           schema != 1, schema != 2 {
             throw UsageDecodeError.unsupportedSchema(schema)
         }
 
         guard let dto = try? JSONDecoder().decode(DTO.self, from: data) else {
             throw UsageDecodeError.malformed
         }
-        guard isSupportedSchema(dto.schema) else {
+        guard dto.schema == 1 || dto.schema == 2 else {
             throw UsageDecodeError.unsupportedSchema(dto.schema)
         }
 
