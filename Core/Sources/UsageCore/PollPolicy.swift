@@ -5,16 +5,27 @@ public enum PollPolicy {
     public static let defaultCooldown: TimeInterval = 300
     public static let writeMinInterval: TimeInterval = 30
 
+    /// Primary windows owned by the statusline payload. Omitted keys are dropped
+    /// (not backfilled from a prior OAuth poll).
+    public static let primaryWindowIDs: Set<String> = ["five_hour", "seven_day"]
+
     public static func shouldFetch(
         force: Bool,
         fileModificationDate: Date?,
         fetchStatus: FetchStatus?,
         now: Date = Date()
     ) -> Bool {
-        guard !force else { return true }
+        if force { return true }
+
         if let status = fetchStatus, status.state == .rateLimited,
-           let until = status.retryAfterAt, now < until { return false }
-        if let mtime = fileModificationDate, now.timeIntervalSince(mtime) < maxAge { return false }
+           let until = status.retryAfterAt {
+            // Still cooling down → skip. Cooldown expired → fetch even if mtime is fresh.
+            return now >= until
+        }
+
+        if let mtime = fileModificationDate, now.timeIntervalSince(mtime) < maxAge {
+            return false
+        }
         return true
     }
 
@@ -71,18 +82,25 @@ public enum PollPolicy {
         )
     }
 
-    /// Merge statusline windows into an existing poll record by id.
-    /// Statusline values win on id collision; OAuth-only ids are retained.
+    /// Merge statusline windows into an existing poll record.
+    /// Returns `nil` when the statusline mapped zero windows (soft-skip).
     public static func prepareStatuslineRecord(
         mapped: UsageRecord,
-        existing: UsageRecord?
-    ) -> UsageRecord {
-        UsageRecord(
+        existing: UsageRecord?,
+        now: Date = Date()
+    ) -> UsageRecord? {
+        guard !mapped.windows.isEmpty else { return nil }
+
+        return UsageRecord(
             accountId: mapped.accountId,
             source: mapped.source,
             updatedAt: mapped.updatedAt,
             origin: mapped.origin,
-            windows: mergeWindows(statusline: mapped.windows, existing: existing?.windows ?? []),
+            windows: mergeWindows(
+                statusline: mapped.windows,
+                existing: existing?.windows ?? [],
+                now: now
+            ),
             plan: mapped.plan ?? existing?.plan,
             fetchStatus: existing?.fetchStatus.map { _ in
                 FetchStatus(state: .ok, updatedAt: mapped.updatedAt)
@@ -90,9 +108,12 @@ public enum PollPolicy {
         )
     }
 
+    /// - Primary ids (`five_hour` / `seven_day`): statusline values only (omitted → dropped).
+    /// - OAuth-only ids: retained only when `resetsAt > now`.
     public static func mergeWindows(
         statusline: [UsageWindow],
-        existing: [UsageWindow]
+        existing: [UsageWindow],
+        now: Date = Date()
     ) -> [UsageWindow] {
         var result: [UsageWindow] = []
         var seen = Set<String>()
@@ -100,7 +121,10 @@ public enum PollPolicy {
             result.append(window)
             seen.insert(window.id)
         }
-        for window in existing where !seen.contains(window.id) {
+        for window in existing {
+            guard !seen.contains(window.id) else { continue }
+            guard !primaryWindowIDs.contains(window.id) else { continue }
+            guard window.resetsAt > now else { continue }
             result.append(window)
         }
         return result

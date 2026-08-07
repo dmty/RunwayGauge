@@ -21,6 +21,48 @@ public enum UsageCommit {
         fileManager: FileManager = .default,
         now: Date = Date()
     ) throws -> Bool {
+        try commit(
+            to: url,
+            minInterval: minInterval,
+            fileManager: fileManager,
+            now: now
+        ) { _ in record }
+    }
+
+    /// Load existing under the lock, then build the candidate (e.g. statusline merge).
+    /// `build` returning `nil` soft-skips without writing.
+    public static func commit(
+        to url: URL,
+        minInterval: TimeInterval = 0,
+        fileManager: FileManager = .default,
+        now: Date = Date(),
+        build: (UsageRecord?) throws -> UsageRecord?
+    ) throws -> Bool {
+        try fileManager.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let lock = try ExclusiveFileLock(
+            url: URL(fileURLWithPath: url.path + ".lock"),
+            fileManager: fileManager
+        )
+        defer { lock.unlock() }
+
+        let existing: UsageRecord?
+        if fileManager.fileExists(atPath: url.path) {
+            switch UsageStore.load(from: url) {
+            case .record(let record):
+                existing = record
+            case .missing, .unreadable:
+                return false
+            }
+        } else {
+            existing = nil
+        }
+
+        guard let record = try build(existing) else { return false }
+
         guard let accountId = record.accountId else {
             throw UsageCommitError.missingAccountId
         }
@@ -38,20 +80,8 @@ public enum UsageCommit {
             )
         }
 
-        try fileManager.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-
-        let lock = try ExclusiveFileLock(
-            url: URL(fileURLWithPath: url.path + ".lock"),
-            fileManager: fileManager
-        )
-        defer { lock.unlock() }
-
-        if fileManager.fileExists(atPath: url.path) {
-            guard case .record(let existing) = UsageStore.load(from: url),
-                  existing.accountId == accountId,
+        if let existing {
+            guard existing.accountId == accountId,
                   !(record.windows.isEmpty && !existing.windows.isEmpty) else {
                 return false
             }

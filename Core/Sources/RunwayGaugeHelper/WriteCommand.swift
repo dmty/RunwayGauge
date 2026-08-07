@@ -19,15 +19,17 @@ enum WriteCommand {
         guard !input.isEmpty,
               let mapped = try? StatuslineUsageMapper.map(
                   data: input, accountId: accountId, observedAt: now
-              ) else { return }
+              ),
+              !mapped.windows.isEmpty
+        else { return }
 
-        let existing: UsageRecord? = if case .record(let record) = UsageStore.load(from: usageURL) { record } else { nil }
-        let record = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing)
+        // Merge against the on-disk record under the commit lock.
         _ = try? UsageCommit.commit(
-            record: record,
             to: usageURL,
             minInterval: PollPolicy.writeMinInterval,
             now: now
-        )
+        ) { existing in
+            PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now)
+        }
     }
 }

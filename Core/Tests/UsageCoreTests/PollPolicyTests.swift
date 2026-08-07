@@ -56,6 +56,23 @@ struct PollPolicyTests {
         #expect(PollPolicy.shouldFetch(force: false, fileModificationDate: mtime, fetchStatus: expired, now: now))
     }
 
+    @Test("expired rate-limit cooldown fetches even when file mtime is fresh")
+    func cooldownExpiredIgnoresFreshMtime() {
+        let freshMtime = now.addingTimeInterval(-30)
+        let expired = FetchStatus(
+            state: .rateLimited,
+            retryAfterAt: now.addingTimeInterval(-1),
+            updatedAt: now.addingTimeInterval(-100)
+        )
+        #expect(PollPolicy.shouldFetch(force: false, fileModificationDate: freshMtime, fetchStatus: expired, now: now))
+        let active = FetchStatus(
+            state: .rateLimited,
+            retryAfterAt: now.addingTimeInterval(60),
+            updatedAt: now.addingTimeInterval(-10)
+        )
+        #expect(!PollPolicy.shouldFetch(force: false, fileModificationDate: freshMtime, fetchStatus: active, now: now))
+    }
+
     @Test("200 maps fixture and sets fetchStatus ok")
     func okMapping() throws {
         let body = try Data(contentsOf: fixtureURL("oauth-usage-response.json"))
@@ -122,10 +139,22 @@ struct PollPolicyTests {
             accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "poll",
             windows: [window], fetchStatus: FetchStatus(state: .rateLimited, updatedAt: now)
         )
-        #expect(PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing).fetchStatus?.state == .ok)
+        #expect(PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing)?.fetchStatus?.state == .ok)
     }
 
-    @Test("statusline write merges OAuth-only windows by id")
+    @Test("empty statusline mapping soft-skips prepare")
+    func emptyStatuslineSkips() throws {
+        let data = try Data(contentsOf: fixtureURL("statusline-none.json"))
+        let mapped = try StatuslineUsageMapper.map(data: data, accountId: "acc_test", observedAt: now)
+        #expect(mapped.windows.isEmpty)
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now.addingTimeInterval(-50), origin: "poll",
+            windows: [UsageWindow(id: "five_hour", label: "Session", usedPercent: 10, resetsAt: now.addingTimeInterval(60))]
+        )
+        #expect(PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now) == nil)
+    }
+
+    @Test("statusline write merges live OAuth-only windows by id")
     func statuslinePreservesOAuthOnlyWindows() {
         let resets = now.addingTimeInterval(3600)
         let mapped = UsageRecord(
@@ -143,11 +172,51 @@ struct PollPolicyTests {
                 UsageWindow(id: "extra_usage", label: "Extra usage", usedPercent: 5, resetsAt: resets, kind: "extra_usage"),
             ]
         )
-        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing)
-        #expect(prepared.windows.map(\.id) == ["five_hour", "seven_day", "seven_day_sonnet", "extra_usage"])
-        #expect(prepared.windows.first { $0.id == "five_hour" }?.usedPercent == 22)
-        #expect(prepared.windows.first { $0.id == "seven_day_sonnet" }?.usedPercent == 70)
-        #expect(prepared.windows.first { $0.id == "extra_usage" }?.usedPercent == 5)
+        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now)
+        #expect(prepared?.windows.map(\.id) == ["five_hour", "seven_day", "seven_day_sonnet", "extra_usage"])
+        #expect(prepared?.windows.first { $0.id == "five_hour" }?.usedPercent == 22)
+        #expect(prepared?.windows.first { $0.id == "seven_day_sonnet" }?.usedPercent == 70)
+        #expect(prepared?.windows.first { $0.id == "extra_usage" }?.usedPercent == 5)
+    }
+
+    @Test("statusline omits primary window and drops stale OAuth primary")
+    func statuslineDropsOmittedPrimary() {
+        let resets = now.addingTimeInterval(3600)
+        let mapped = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "statusline",
+            windows: [UsageWindow(id: "five_hour", label: "Session", usedPercent: 22, resetsAt: resets)]
+        )
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now.addingTimeInterval(-100), origin: "poll",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 10, resetsAt: resets),
+                UsageWindow(id: "seven_day", label: "Week", usedPercent: 40, resetsAt: resets),
+                UsageWindow(id: "seven_day_sonnet", label: "Sonnet", usedPercent: 70, resetsAt: resets),
+            ]
+        )
+        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now)
+        #expect(prepared?.windows.map(\.id) == ["five_hour", "seven_day_sonnet"])
+        #expect(prepared?.windows.contains { $0.id == "seven_day" } == false)
+    }
+
+    @Test("statusline merge drops expired OAuth-only windows")
+    func statuslineDropsExpiredOAuthOnly() {
+        let live = now.addingTimeInterval(3600)
+        let expired = now.addingTimeInterval(-10)
+        let mapped = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "statusline",
+            windows: [UsageWindow(id: "five_hour", label: "Session", usedPercent: 22, resetsAt: live)]
+        )
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now.addingTimeInterval(-100), origin: "poll",
+            windows: [
+                UsageWindow(id: "seven_day_sonnet", label: "Sonnet", usedPercent: 70, resetsAt: expired),
+                UsageWindow(id: "extra_usage", label: "Extra usage", usedPercent: 5, resetsAt: live, kind: "extra_usage"),
+            ]
+        )
+        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now)
+        #expect(prepared?.windows.map(\.id) == ["five_hour", "extra_usage"])
+        #expect(prepared?.windows.contains { $0.id == "seven_day_sonnet" } == false)
     }
 }
 
