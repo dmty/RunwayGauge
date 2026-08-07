@@ -131,7 +131,8 @@ public enum UsageCommit {
 }
 
 #if canImport(Darwin)
-// ponytail: fcntl flock on sidecar .lock; per-account locks if shell+Swift contention grows
+/// Sidecar `.json.lock` using BSD `flock(2)` — same advisory lock family as
+/// `/usr/bin/lockf` in `scripts/lib/usage-commit.sh` (fcntl record locks do not interoperate).
 private final class ExclusiveFileLock {
     private let handle: FileHandle
     private var locked = false
@@ -146,8 +147,7 @@ private final class ExclusiveFileLock {
         } catch {
             throw UsageCommitError.lockFailed
         }
-        var lock = Self.flock(F_WRLCK)
-        if fcntl(handle.fileDescriptor, F_SETLKW, &lock) != 0 {
+        if flock(handle.fileDescriptor, LOCK_EX) != 0 {
             try? handle.close()
             throw UsageCommitError.lockFailed
         }
@@ -156,17 +156,12 @@ private final class ExclusiveFileLock {
 
     func unlock() {
         guard locked else { return }
-        var lock = Self.flock(F_UNLCK)
-        _ = fcntl(handle.fileDescriptor, F_SETLK, &lock)
+        _ = flock(handle.fileDescriptor, LOCK_UN)
         try? handle.close()
         locked = false
     }
 
     deinit { unlock() }
-
-    private static func flock(_ type: Int32) -> Darwin.flock {
-        Darwin.flock(l_start: 0, l_len: 0, l_pid: 0, l_type: Int16(type), l_whence: Int16(SEEK_SET))
-    }
 }
 #else
 private final class ExclusiveFileLock {
