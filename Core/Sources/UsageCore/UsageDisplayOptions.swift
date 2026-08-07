@@ -7,6 +7,24 @@ public struct UsageDisplayOptions: Sendable, Equatable {
     public var showPlanLabel: Bool
     public var showFetchStatus: Bool
 
+    public init(
+        showModelScopedLimits: Bool,
+        showSonnetWeekly: Bool,
+        showExtraUsage: Bool,
+        useAPISeverity: Bool,
+        showSessionNotStarted: Bool,
+        showPlanLabel: Bool,
+        showFetchStatus: Bool
+    ) {
+        self.showModelScopedLimits = showModelScopedLimits
+        self.showSonnetWeekly = showSonnetWeekly
+        self.showExtraUsage = showExtraUsage
+        self.useAPISeverity = useAPISeverity
+        self.showSessionNotStarted = showSessionNotStarted
+        self.showPlanLabel = showPlanLabel
+        self.showFetchStatus = showFetchStatus
+    }
+
     public static let `default` = UsageDisplayOptions(
         showModelScopedLimits: false,
         showSonnetWeekly: false,
@@ -22,10 +40,9 @@ public struct UsageDisplayOptions: Sendable, Equatable {
     }
 
     public func level(for window: UsageWindow) -> UsageLevel {
-        if useAPISeverity {
-            return UsageLevel(usedPercent: window.usedPercent, severity: window.severity)
-        }
-        return UsageLevel(usedPercent: window.usedPercent)
+        useAPISeverity
+            ? UsageLevel(usedPercent: window.usedPercent, severity: window.severity)
+            : UsageLevel(usedPercent: window.usedPercent)
     }
 
     private func isVisible(_ window: UsageWindow) -> Bool {

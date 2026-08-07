@@ -6,15 +6,10 @@ import Testing
 struct UsageDisplayOptionsTests {
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
-    private func window(
-        id: String,
-        label: String = "",
-        usedPercent: Double = 50,
-        severity: String? = nil
-    ) -> UsageWindow {
+    private func window(id: String, usedPercent: Double = 50, severity: String? = nil) -> UsageWindow {
         UsageWindow(
             id: id,
-            label: label.isEmpty ? id : label,
+            label: id,
             usedPercent: usedPercent,
             resetsAt: now.addingTimeInterval(3600),
             severity: severity
@@ -22,105 +17,73 @@ struct UsageDisplayOptionsTests {
     }
 
     private func record(windows: [UsageWindow]) -> UsageRecord {
-        UsageRecord(
-            source: "claude-code",
-            updatedAt: now,
-            origin: "poll",
-            windows: windows
-        )
+        UsageRecord(source: "claude-code", updatedAt: now, origin: "poll", windows: windows)
     }
 
     @Test("default disables optional display toggles")
     func defaultOptions() {
-        let options = UsageDisplayOptions.default
-        #expect(!options.showModelScopedLimits)
-        #expect(!options.showSonnetWeekly)
-        #expect(!options.showExtraUsage)
-        #expect(!options.useAPISeverity)
-        #expect(!options.showSessionNotStarted)
-        #expect(!options.showPlanLabel)
-        #expect(!options.showFetchStatus)
+        let o = UsageDisplayOptions.default
+        #expect(!o.showModelScopedLimits && !o.showSonnetWeekly && !o.showExtraUsage)
+        #expect(!o.useAPISeverity && !o.showSessionNotStarted && !o.showPlanLabel && !o.showFetchStatus)
     }
 
     @Test("default visibleWindows keeps session and week only")
     func defaultVisibleWindows() {
         let windows = [
-            window(id: "five_hour", label: "Session"),
-            window(id: "seven_day", label: "Week"),
-            window(id: "seven_day_sonnet", label: "Sonnet"),
-            window(id: "weekly_scoped_fable", label: "Fable"),
-            window(id: "extra_usage", label: "Extra usage"),
+            window(id: "five_hour"), window(id: "seven_day"),
+            window(id: "seven_day_sonnet"), window(id: "weekly_scoped_fable"), window(id: "extra_usage"),
         ]
-        let visible = UsageDisplayOptions.default.visibleWindows(from: record(windows: windows))
-        #expect(visible.map(\.id) == ["five_hour", "seven_day"])
+        #expect(UsageDisplayOptions.default.visibleWindows(from: record(windows: windows)).map(\.id)
+            == ["five_hour", "seven_day"])
     }
 
     @Test("showSonnetWeekly includes sonnet window")
     func sonnetToggle() {
-        var options = UsageDisplayOptions.default
-        options.showSonnetWeekly = true
-        let windows = [
-            window(id: "five_hour", label: "Session"),
-            window(id: "seven_day_sonnet", label: "Sonnet"),
-        ]
-        let visible = options.visibleWindows(from: record(windows: windows))
-        #expect(visible.map(\.id) == ["five_hour", "seven_day_sonnet"])
+        var o = UsageDisplayOptions.default
+        o.showSonnetWeekly = true
+        let windows = [window(id: "five_hour"), window(id: "seven_day_sonnet")]
+        #expect(o.visibleWindows(from: record(windows: windows)).map(\.id) == ["five_hour", "seven_day_sonnet"])
     }
 
     @Test("showModelScopedLimits includes weekly_scoped windows")
     func modelScopedToggle() {
-        var options = UsageDisplayOptions.default
-        options.showModelScopedLimits = true
-        let windows = [
-            window(id: "seven_day", label: "Week"),
-            window(id: "weekly_scoped_fable", label: "Fable"),
-            window(id: "weekly_scoped_opus", label: "Opus"),
-        ]
-        let visible = options.visibleWindows(from: record(windows: windows))
-        #expect(visible.map(\.id) == ["seven_day", "weekly_scoped_fable", "weekly_scoped_opus"])
+        var o = UsageDisplayOptions.default
+        o.showModelScopedLimits = true
+        let windows = [window(id: "seven_day"), window(id: "weekly_scoped_fable"), window(id: "weekly_scoped_opus")]
+        #expect(o.visibleWindows(from: record(windows: windows)).map(\.id)
+            == ["seven_day", "weekly_scoped_fable", "weekly_scoped_opus"])
     }
 
     @Test("showExtraUsage includes extra_usage window")
     func extraUsageToggle() {
-        var options = UsageDisplayOptions.default
-        options.showExtraUsage = true
-        let windows = [
-            window(id: "five_hour", label: "Session"),
-            window(id: "extra_usage", label: "Extra usage"),
-        ]
-        let visible = options.visibleWindows(from: record(windows: windows))
-        #expect(visible.map(\.id) == ["five_hour", "extra_usage"])
+        var o = UsageDisplayOptions.default
+        o.showExtraUsage = true
+        let windows = [window(id: "five_hour"), window(id: "extra_usage")]
+        #expect(o.visibleWindows(from: record(windows: windows)).map(\.id) == ["five_hour", "extra_usage"])
     }
 
     @Test("visibleWindows preserves mapper order")
     func preservesOrder() {
-        var options = UsageDisplayOptions.default
-        options.showSonnetWeekly = true
-        options.showModelScopedLimits = true
-        options.showExtraUsage = true
+        var o = UsageDisplayOptions.default
+        o.showSonnetWeekly = true
+        o.showModelScopedLimits = true
+        o.showExtraUsage = true
         let windows = [
-            window(id: "five_hour", label: "Session"),
-            window(id: "seven_day", label: "Week"),
-            window(id: "seven_day_sonnet", label: "Sonnet"),
-            window(id: "weekly_scoped_fable", label: "Fable"),
-            window(id: "extra_usage", label: "Extra usage"),
+            window(id: "five_hour"), window(id: "seven_day"), window(id: "seven_day_sonnet"),
+            window(id: "weekly_scoped_fable"), window(id: "extra_usage"),
         ]
-        let visible = options.visibleWindows(from: record(windows: windows))
-        #expect(visible.map(\.id) == windows.map(\.id))
+        #expect(o.visibleWindows(from: record(windows: windows)).map(\.id) == windows.map(\.id))
     }
 
     @Test("level ignores severity when useAPISeverity is false")
     func levelPercentOnly() {
-        let options = UsageDisplayOptions.default
-        let window = window(id: "five_hour", usedPercent: 10, severity: "critical")
-        #expect(options.level(for: window) == .normal)
+        #expect(UsageDisplayOptions.default.level(for: window(id: "five_hour", usedPercent: 10, severity: "critical")) == .normal)
     }
 
     @Test("level prefers severity when useAPISeverity is true")
     func levelUsesSeverity() {
-        var options = UsageDisplayOptions.default
-        options.useAPISeverity = true
-        let window = window(id: "five_hour", usedPercent: 10, severity: "critical")
-        #expect(options.level(for: window) == .critical)
+        var o = UsageDisplayOptions.default
+        o.useAPISeverity = true
+        #expect(o.level(for: window(id: "five_hour", usedPercent: 10, severity: "critical")) == .critical)
     }
 }
