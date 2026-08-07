@@ -57,12 +57,19 @@ enum HelperSetup {
     }
 
     static func refreshUsageNow() async -> SetupResult {
-        let helperURL = installDirectoryURL.appendingPathComponent(helperBinaryName)
-        guard FileManager.default.isExecutableFile(atPath: helperURL.path) else {
+        let installDir = installDirectoryURL
+        guard isHelperBinaryAvailable(in: installDir) else {
             return fail("Installed helper binary not found. Run Set up helpers first.")
         }
         return await Task.detached(priority: .userInitiated) {
-            runHelper(executableURL: helperURL, arguments: ["poll", "--force"])
+            let process = Process()
+            process.executableURL = installDir.appendingPathComponent(helperBinaryName)
+            process.arguments = ["poll", "--force"]
+            let result = runProcess(process)
+            let summary = result.status == 0
+                ? "Usage refresh completed."
+                : "Usage refresh failed (exit code \(result.status))."
+            return SetupResult(succeeded: result.status == 0, output: "\(summary)\n\n\(result.output)")
         }.value
     }
 
@@ -147,23 +154,6 @@ enum HelperSetup {
         let (summary, succeeded) = exitSummaries[result.status]
             ?? ("Setup failed (exit code \(result.status)).", false)
         return SetupResult(succeeded: succeeded, output: "\(summary)\n\n\(result.output)")
-    }
-
-    private static func runHelper(executableURL: URL, arguments: [String]) -> SetupResult {
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = arguments
-        let result = runProcess(process)
-        if result.status == 0 {
-            return SetupResult(
-                succeeded: true,
-                output: "Usage refresh completed.\n\n\(result.output)"
-            )
-        }
-        return SetupResult(
-            succeeded: false,
-            output: "Usage refresh failed (exit code \(result.status)).\n\n\(result.output)"
-        )
     }
 
     private static func runProcess(_ process: Process) -> (status: Int32, output: String) {

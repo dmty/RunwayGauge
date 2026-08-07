@@ -1,6 +1,5 @@
 import SwiftUI
 import UsageCore
-import WidgetKit
 
 enum DiscoveredAccountMerge {
     static func merge(
@@ -126,8 +125,6 @@ struct SettingsView: View {
     @State private var pendingStubPin: Account?
     @State private var deleteUsageFile = false
     @State private var accessMessage: String?
-    @State private var isRefreshingUsage = false
-    @State private var refreshOutput: String?
 
     var body: some View {
         Form {
@@ -372,16 +369,16 @@ struct SettingsView: View {
             }
             .disabled(model.isSettingUpHelpers || !model.canMutateRegistry)
             Button {
-                Task { await refreshUsageNow() }
+                Task { await model.refreshUsageNow() }
             } label: {
-                if isRefreshingUsage {
+                if model.isRefreshingUsage {
                     ProgressView()
                 } else {
                     Label("Refresh usage now", systemImage: "arrow.clockwise.circle")
                 }
             }
             .disabled(
-                isRefreshingUsage
+                model.isRefreshingUsage
                     || model.isSettingUpHelpers
                     || !diagnostics.helperBinaryAvailable
             )
@@ -390,25 +387,9 @@ struct SettingsView: View {
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
             }
-            if let output = refreshOutput {
-                Text(output)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-            }
             Text("Meter visibility: Notification Center → Edit Widgets → RunwayGauge.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private func refreshUsageNow() async {
-        isRefreshingUsage = true
-        refreshOutput = nil
-        defer { isRefreshingUsage = false }
-        let result = await HelperSetup.refreshUsageNow()
-        refreshOutput = result.output
-        if result.succeeded {
-            WidgetCenter.shared.reloadTimelines(ofKind: "UsageWidget")
         }
     }
 
