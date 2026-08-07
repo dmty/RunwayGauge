@@ -89,7 +89,9 @@ enum HelperSetup {
     }
 
     static func needsReconfiguration(registry: AccountRegistry, diagnostics: HelperDiagnostics) -> Bool {
-        diagnostics.hasLegacyUsageWarning
+        // Missing binary covers upgrades from shell-only helper installs.
+        !diagnostics.helperBinaryAvailable
+            || diagnostics.hasLegacyUsageWarning
             || diagnostics.configuredFingerprint != fingerprint(for: registry)
     }
 

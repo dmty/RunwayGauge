@@ -272,6 +272,23 @@ struct AccountHostTests {
         #expect(HelperSetup.needsReconfiguration(registry: value, diagnostics: diagnostics))
     }
 
+    @Test("missing helper binary requires reconfiguration")
+    func missingHelperBinaryRequiresReconfiguration() {
+        let value = registry(revision: 1, accountID: "acc_first")
+        let fingerprint = HelperSetup.fingerprint(for: value)
+        let diagnostics = HelperDiagnostics(
+            launchAgentInstalled: true,
+            installedDirectory: "/tmp/helpers",
+            installedDirectoryExists: true,
+            bundledHelpersAvailable: true,
+            helperBinaryAvailable: false,
+            configuredFingerprint: fingerprint,
+            hasLegacyUsageWarning: false
+        )
+
+        #expect(HelperSetup.needsReconfiguration(registry: value, diagnostics: diagnostics))
+    }
+
     @Test("an older mutation completion cannot replace newer UI state")
     func olderCommitDoesNotRegressRegistry() {
         let current = registry(revision: 8, accountID: "acc_newer")

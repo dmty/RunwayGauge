@@ -6,15 +6,18 @@ struct ClaudeUsageView: View {
     let freshness: Freshness
     let now: Date
     let compact: Bool
+    /// Task 7 will pass AppIntent configuration; until then keep legacy session+week bars.
+    var options: UsageDisplayOptions = .default
 
     private let formatter = UsageFormatter(timeZone: .current)
     private var contentPadding: CGFloat { compact ? 14 : 16 }
 
     var body: some View {
-        if record.windows.isEmpty {
+        let windows = options.visibleWindows(from: record)
+        if windows.isEmpty {
             message("No usage data yet — start a Claude Code session.")
         } else {
-            rows(record: record, freshness: freshness)
+            rows(windows: windows, freshness: freshness)
         }
     }
 
@@ -26,7 +29,7 @@ struct ClaudeUsageView: View {
             .padding(contentPadding)
     }
 
-    private func rows(record: UsageRecord, freshness: Freshness) -> some View {
+    private func rows(windows: [UsageWindow], freshness: Freshness) -> some View {
         let stale = freshness != .fresh
         let ageSuffix = switch freshness {
         case .fresh: ""
@@ -42,10 +45,11 @@ struct ClaudeUsageView: View {
                     // Leave room for cycle + settings controls in the top-trailing corner.
                     .padding(.trailing, 44)
             }
-            ForEach(record.windows, id: \.id) { window in
+            ForEach(windows, id: \.id) { window in
                 UsageBar(
                     label: label(for: window),
                     window: window,
+                    level: options.level(for: window),
                     resetLine: resetLine(for: window, ageSuffix: ageSuffix),
                     dimmed: stale,
                     compact: compact

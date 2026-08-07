@@ -14,8 +14,16 @@ RUNTIME=(
 rm -rf "$DEST" && mkdir -p "$DEST/lib"
 for f in "${RUNTIME[@]}"; do cp "$ROOT/scripts/$f" "$DEST/$f"; done
 
-( cd "$ROOT/Core" && swift build -c release --product RunwayGaugeHelper )
-cp "$ROOT/Core/.build/release/RunwayGaugeHelper" "$DEST/runwaygauge-helper"
+# Universal binary (arm64 + x86_64) for Intel + Apple Silicon Macs.
+(
+  cd "$ROOT/Core"
+  swift build -c release --arch arm64 --product RunwayGaugeHelper
+  swift build -c release --arch x86_64 --product RunwayGaugeHelper
+  lipo -create \
+    .build/arm64-apple-macosx/release/RunwayGaugeHelper \
+    .build/x86_64-apple-macosx/release/RunwayGaugeHelper \
+    -output "$DEST/runwaygauge-helper"
+)
 
 find "$DEST" -type f \( -name '*.sh' -o -name 'runwaygauge-helper' \) -exec chmod 755 {} +
 find "$DEST/lib" -type f -exec chmod 644 {} +

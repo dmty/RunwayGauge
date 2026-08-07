@@ -4,6 +4,7 @@ import UsageCore
 struct UsageBar: View {
     let label: String
     let window: UsageWindow
+    let level: UsageLevel
     let resetLine: String
     let dimmed: Bool
     let compact: Bool
@@ -24,7 +25,7 @@ struct UsageBar: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.16))
-                    Capsule().fill(window.level.color).frame(width: geo.size.width * fraction)
+                    Capsule().fill(level.color).frame(width: geo.size.width * fraction)
                 }
             }
             .frame(height: 8)
