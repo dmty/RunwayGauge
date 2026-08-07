@@ -1,6 +1,5 @@
 import Foundation
 
-/// HTTP GET of Anthropic OAuth usage. Injectable so unit tests never hit the network.
 public protocol UsageFetching: Sendable {
     func fetchUsage(accessToken: String) async throws -> (
         status: Int,
@@ -9,7 +8,6 @@ public protocol UsageFetching: Sendable {
     )
 }
 
-/// Orchestrates poll: skip policy → fetch → map/commit. Token must already be resolved.
 public struct UsagePoller {
     public var fetcher: any UsageFetching
     nonisolated(unsafe) public var fileManager: FileManager
@@ -38,65 +36,46 @@ public struct UsagePoller {
         force: Bool,
         now: Date = Date()
     ) async -> Step {
-        let existing: UsageRecord?
-        if case .record(let record) = UsageStore.load(from: usageURL) {
-            existing = record
-        } else {
-            existing = nil
-        }
-
+        let existing = loadExisting(from: usageURL)
         let mtime = (try? fileManager.attributesOfItem(atPath: usageURL.path))?[.modificationDate] as? Date
         guard PollPolicy.shouldFetch(
             force: force,
             fileModificationDate: mtime,
             fetchStatus: existing?.fetchStatus,
             now: now
-        ) else {
-            return .skipped
-        }
+        ) else { return .skipped }
 
-        let response: (status: Int, body: Data, retryAfter: TimeInterval?)
+        let status: Int
+        let body: Data
+        let retryAfter: TimeInterval?
         do {
-            response = try await fetcher.fetchUsage(accessToken: accessToken)
+            (status, body, retryAfter) = try await fetcher.fetchUsage(accessToken: accessToken)
         } catch {
-            let failed = PollPolicy.makePollRecord(
-                accountId: accountId,
-                status: -1,
-                body: Data(),
-                retryAfter: nil,
-                existing: existing,
-                observedAt: now
-            )
-            guard let failed else { return .softFailed }
-            do {
-                let wrote = try UsageCommit.commit(
-                    record: failed,
-                    to: usageURL,
-                    minInterval: minInterval,
-                    fileManager: fileManager,
-                    now: now
-                )
-                return .committed(wrote: wrote)
-            } catch {
-                return .softFailed
-            }
+            (status, body, retryAfter) = (-1, Data(), nil)
         }
 
         guard let record = PollPolicy.makePollRecord(
             accountId: accountId,
-            status: response.status,
-            body: response.body,
-            retryAfter: response.retryAfter,
+            status: status,
+            body: body,
+            retryAfter: retryAfter,
             existing: existing,
             observedAt: now
-        ) else {
-            return .softFailed
-        }
+        ) else { return .softFailed }
 
+        return commit(record, to: usageURL, now: now)
+    }
+
+    private func loadExisting(from url: URL) -> UsageRecord? {
+        if case .record(let record) = UsageStore.load(from: url) { return record }
+        return nil
+    }
+
+    private func commit(_ record: UsageRecord, to url: URL, now: Date) -> Step {
         do {
             let wrote = try UsageCommit.commit(
                 record: record,
-                to: usageURL,
+                to: url,
                 minInterval: minInterval,
                 fileManager: fileManager,
                 now: now
