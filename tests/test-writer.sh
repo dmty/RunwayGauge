@@ -6,6 +6,11 @@ cd "$(dirname "$0")/.." || exit 1
 ROOT="$PWD"
 FAILED=0
 
+HELPER="$ROOT/Core/.build/debug/RunwayGaugeHelper"
+if [[ ! -x "$HELPER" ]]; then
+  (cd "$ROOT/Core" && swift build -c debug --product RunwayGaugeHelper) || exit 1
+fi
+
 pass() { echo "  ok   - $1"; }
 fail() { echo "  FAIL - $1"; FAILED=1; }
 check() {
@@ -29,8 +34,14 @@ source "$ROOT/scripts/lib/usage-commit.sh"
 
 install_valid_registry() { cp "$ROOT/tests/fixtures/accounts-valid.json" "$ACCOUNTS_FILE"; }
 run_writer() {
-  CLAUDE_CONFIG_DIR="${1:-$HOME/.claude}" \
-    "$ROOT/scripts/write-claude-usage.sh" < "${2:-$ROOT/tests/fixtures/statusline-both.json}"
+  local config="${1:-$HOME/.claude}"
+  local fixture="${2:-$ROOT/tests/fixtures/statusline-both.json}"
+  local account_id="${3:-}"
+  if [[ -n "$account_id" ]]; then
+    CLAUDE_CONFIG_DIR="$config" "$HELPER" write --account-id "$account_id" < "$fixture"
+  else
+    CLAUDE_CONFIG_DIR="$config" "$HELPER" write < "$fixture"
+  fi
 }
 usage_file_count() { find "$USAGE_DIR" -name 'usage-*.json' -type f | wc -l | tr -d ' '; }
 registry_validity() {
@@ -117,8 +128,8 @@ install_valid_registry
 printf 'legacy\n' > "$USAGE_DIR/claude-code.json"
 printf 'archive\n' > "$USAGE_DIR/claude-code.legacy.json"
 FILE="$USAGE_DIR/usage-acc_primary.json"
-run_writer "$HOME/.claude"
-check "schema is 1" "$(jq -r .schema "$FILE")" "1"
+run_writer "$HOME/.claude" "$ROOT/tests/fixtures/statusline-both.json" acc_primary
+check "schema is 2" "$(jq -r .schema "$FILE")" "2"
 check "matching accountId" "$(jq -r .accountId "$FILE")" "acc_primary"
 check "source" "$(jq -r .source "$FILE")" "claude-code"
 check "origin" "$(jq -r .origin "$FILE")" "statusline"
@@ -131,14 +142,14 @@ check "legacy usage remains untouched" "$(cat "$USAGE_DIR/claude-code.json")" "l
 check "legacy archive remains untouched" "$(cat "$USAGE_DIR/claude-code.legacy.json")" "archive"
 
 echo "writer: preserves throttled and nonempty account data"
-run_writer "$HOME/.claude" "$ROOT/tests/fixtures/statusline-session-only.json"
+run_writer "$HOME/.claude" "$ROOT/tests/fixtures/statusline-session-only.json" acc_primary
 check "fresh account file is throttled" "$(jq -r '.windows | length' "$FILE")" "2"
 touch -t 200001010000 "$FILE"
-run_writer "$HOME/.claude" "$ROOT/tests/fixtures/statusline-none.json"
+run_writer "$HOME/.claude" "$ROOT/tests/fixtures/statusline-none.json" acc_primary
 check "empty payload preserves windows" "$(jq -r '.windows | length' "$FILE")" "2"
 touch -t 200001010000 "$FILE"
 sleep 1
-run_writer "$HOME/.claude" "$ROOT/tests/fixtures/statusline-session-only.json"
+run_writer "$HOME/.claude" "$ROOT/tests/fixtures/statusline-session-only.json" acc_primary
 check "stale account file is replaced" "$(jq -r '.windows | length' "$FILE")" "1"
 
 echo "usage commit: concurrent candidates retain newer observation"

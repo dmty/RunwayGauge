@@ -74,7 +74,6 @@ inspect health, and install helpers. The widget extension remains sandboxed.
 
     (cd Core && swift test)
     ./tests/test-writer.sh
-    ./tests/test-poller.sh
     ./tests/test-helper-lifecycle.sh
     ./tests/test-helper-setup.sh
     ./tests/test-helper-bundle-sync.sh

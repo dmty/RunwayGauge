@@ -1,7 +1,7 @@
 import Foundation
 import UsageCore
 
-/// Live Anthropic OAuth usage GET. Headers match `scripts/poll-claude-usage.sh` plus anthropic-beta.
+/// Live Anthropic OAuth usage GET with anthropic-beta header.
 struct UsageHTTPClient: UsageFetching, Sendable {
     var session: URLSession
     var url: URL
