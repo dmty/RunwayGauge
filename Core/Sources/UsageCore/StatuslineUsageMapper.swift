@@ -2,9 +2,7 @@ import Foundation
 
 /// Maps Claude Code statusline JSON (`rate_limits`) into a schema-2 `UsageRecord`.
 public enum StatuslineUsageMapper {
-    public enum Error: Swift.Error, Equatable {
-        case malformed
-    }
+    public enum Error: Swift.Error, Equatable { case malformed }
 
     public static func map(
         data: Data,
@@ -16,31 +14,11 @@ public enum StatuslineUsageMapper {
         }
 
         var windows: [UsageWindow] = []
-
-        if let five = dto.rateLimits?.fiveHour,
-           let usedPercent = five.usedPercentage,
-           let resetsAt = five.resetsAt {
-            windows.append(
-                UsageWindow(
-                    id: "five_hour",
-                    label: "Session",
-                    usedPercent: usedPercent,
-                    resetsAt: Date(timeIntervalSince1970: resetsAt)
-                )
-            )
-        }
-
-        if let seven = dto.rateLimits?.sevenDay,
-           let usedPercent = seven.usedPercentage,
-           let resetsAt = seven.resetsAt {
-            windows.append(
-                UsageWindow(
-                    id: "seven_day",
-                    label: "Week",
-                    usedPercent: usedPercent,
-                    resetsAt: Date(timeIntervalSince1970: resetsAt)
-                )
-            )
+        for (src, id, label) in [
+            (dto.rateLimits?.fiveHour, "five_hour", "Session"),
+            (dto.rateLimits?.sevenDay, "seven_day", "Week"),
+        ] {
+            if let w = unixWindow(src, id: id, label: label) { windows.append(w) }
         }
 
         return UsageRecord(
@@ -51,20 +29,21 @@ public enum StatuslineUsageMapper {
             windows: windows
         )
     }
+
+    private static func unixWindow(_ dto: RateLimitWindowDTO?, id: String, label: String) -> UsageWindow? {
+        guard let dto, let pct = dto.usedPercentage, let ts = dto.resetsAt else { return nil }
+        return UsageWindow(id: id, label: label, usedPercent: pct, resetsAt: Date(timeIntervalSince1970: ts))
+    }
 }
 
 private struct StatuslineBody: Decodable {
     let rateLimits: RateLimitsDTO?
-
-    enum CodingKeys: String, CodingKey {
-        case rateLimits = "rate_limits"
-    }
+    enum CodingKeys: String, CodingKey { case rateLimits = "rate_limits" }
 }
 
 private struct RateLimitsDTO: Decodable {
     let fiveHour: RateLimitWindowDTO?
     let sevenDay: RateLimitWindowDTO?
-
     enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
         case sevenDay = "seven_day"
@@ -74,7 +53,6 @@ private struct RateLimitsDTO: Decodable {
 private struct RateLimitWindowDTO: Decodable {
     let usedPercentage: Double?
     let resetsAt: Double?
-
     enum CodingKeys: String, CodingKey {
         case usedPercentage = "used_percentage"
         case resetsAt = "resets_at"

@@ -2,12 +2,9 @@ import Foundation
 
 /// Maps Anthropic OAuth usage JSON into schema-2 `UsageRecord` windows.
 public enum OAuthUsageMapper {
-    public enum Error: Swift.Error, Equatable {
-        case malformed
-    }
+    public enum Error: Swift.Error, Equatable { case malformed }
 
-    /// When `extra_usage` is enabled but has no `resets_at`, use `observedAt + 32 days`
-    /// as a sentinel so `UsageWindow.resetsAt` stays required.
+    /// ponytail: sentinel when extra_usage has no resets_at
     public static let extraUsageResetSentinelDays: TimeInterval = 32 * 24 * 60 * 60
 
     public static func map(
@@ -16,71 +13,48 @@ public enum OAuthUsageMapper {
         observedAt: Date,
         origin: String
     ) throws -> UsageRecord {
-        let decoder = JSONDecoder()
-        guard let dto = try? decoder.decode(OAuthBody.self, from: data) else {
+        guard let dto = try? JSONDecoder().decode(OAuthBody.self, from: data) else {
             throw Error.malformed
         }
 
         var windows: [UsageWindow] = []
-
-        if let window = timeWindow(dto.fiveHour, id: "five_hour", label: "Session") {
-            windows.append(window)
-        }
-        if let window = timeWindow(dto.sevenDay, id: "seven_day", label: "Week") {
-            windows.append(window)
-        }
-        if let window = timeWindow(dto.sevenDaySonnet, id: "seven_day_sonnet", label: "Sonnet") {
-            windows.append(window)
+        for (src, id, label) in [
+            (dto.fiveHour, "five_hour", "Session"),
+            (dto.sevenDay, "seven_day", "Week"),
+            (dto.sevenDaySonnet, "seven_day_sonnet", "Sonnet"),
+        ] {
+            if let w = timeWindow(src, id: id, label: label) { windows.append(w) }
         }
 
         for limit in dto.limits ?? [] where limit.kind == "weekly_scoped" {
             guard let percent = limit.percent,
-                  let resetsRaw = limit.resetsAt,
-                  let resetsAt = parseISO8601(resetsRaw)
+                  let resetsAt = limit.resetsAt.flatMap(parseISO8601),
+                  let name = limit.scope?.model?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !name.isEmpty
             else { continue }
-            let displayName = limit.scope?.model?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let displayName, !displayName.isEmpty else { continue }
-            windows.append(
-                UsageWindow(
-                    id: "weekly_scoped_\(sanitize(displayName))",
-                    label: displayName,
-                    usedPercent: percent,
-                    resetsAt: resetsAt,
-                    severity: limit.severity,
-                    kind: limit.kind
-                )
-            )
+            windows.append(UsageWindow(
+                id: "weekly_scoped_\(sanitize(name))",
+                label: name,
+                usedPercent: percent,
+                resetsAt: resetsAt,
+                severity: limit.severity,
+                kind: limit.kind
+            ))
         }
 
-        if let extra = dto.extraUsage, extra.isEnabled == true {
-            let usedPercent: Double?
-            if let utilization = extra.utilization {
-                usedPercent = utilization
-            } else if let used = extra.usedCredits, let limit = extra.monthlyLimit, limit > 0 {
-                usedPercent = (used / limit) * 100
-            } else {
-                usedPercent = nil
-            }
-
-            if let usedPercent {
-                let resetsAt: Date
-                if let raw = extra.resetsAt, let parsed = parseISO8601(raw) {
-                    resetsAt = parsed
-                } else {
-                    // Sentinel: extra_usage often has no resets_at; keep UsageWindow.resetsAt required.
-                    resetsAt = observedAt.addingTimeInterval(extraUsageResetSentinelDays)
-                }
-                windows.append(
-                    UsageWindow(
-                        id: "extra_usage",
-                        label: "Extra usage",
-                        usedPercent: usedPercent,
-                        resetsAt: resetsAt,
-                        severity: nil,
-                        kind: "extra_usage"
-                    )
-                )
-            }
+        if let extra = dto.extraUsage, extra.isEnabled == true,
+           let usedPercent = extra.utilization
+               ?? extra.usedCredits.flatMap({ u in extra.monthlyLimit.flatMap { l in l > 0 ? (u / l) * 100 : nil } }) {
+            let resetsAt = extra.resetsAt.flatMap(parseISO8601)
+                ?? observedAt.addingTimeInterval(extraUsageResetSentinelDays)
+            windows.append(UsageWindow(
+                id: "extra_usage",
+                label: "Extra usage",
+                usedPercent: usedPercent,
+                resetsAt: resetsAt,
+                severity: nil,
+                kind: "extra_usage"
+            ))
         }
 
         return UsageRecord(
@@ -92,53 +66,37 @@ public enum OAuthUsageMapper {
         )
     }
 
-    private static func timeWindow(
-        _ value: TimeWindowDTO?,
-        id: String,
-        label: String
-    ) -> UsageWindow? {
-        guard let value else { return nil }
-        guard let usedPercent = value.utilization,
-              let resetsRaw = value.resetsAt,
-              let resetsAt = parseISO8601(resetsRaw)
+    private static func timeWindow(_ value: TimeWindowDTO?, id: String, label: String) -> UsageWindow? {
+        guard let value,
+              let usedPercent = value.utilization,
+              let resetsAt = value.resetsAt.flatMap(parseISO8601)
         else { return nil }
-        return UsageWindow(
-            id: id,
-            label: label,
-            usedPercent: usedPercent,
-            resetsAt: resetsAt
-        )
+        return UsageWindow(id: id, label: label, usedPercent: usedPercent, resetsAt: resetsAt)
     }
 
     private static func sanitize(_ displayName: String) -> String {
-        let lowered = displayName.lowercased()
-        let mapped = lowered.map { ch -> Character in
-            ch.isLetter || ch.isNumber ? ch : "_"
-        }
-        let collapsed = String(mapped)
+        let slug = displayName.lowercased()
+            .map { $0.isLetter || $0.isNumber ? String($0) : "_" }
+            .joined()
             .split(separator: "_", omittingEmptySubsequences: true)
             .joined(separator: "_")
-        return collapsed.isEmpty ? "unknown" : collapsed
+        return slug.isEmpty ? "unknown" : slug
     }
 
     private static func parseISO8601(_ raw: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: raw) { return date }
-
-        let basic = ISO8601DateFormatter()
-        basic.formatOptions = [.withInternetDateTime]
-        if let date = basic.date(from: raw) { return date }
-
-        // Fixture-style "+00:00" without converting fractional seconds via formatter options alone.
-        var normalized = raw
-        if let range = normalized.range(of: #"\.\d+"#, options: .regularExpression) {
-            normalized.removeSubrange(range)
+        for options: ISO8601DateFormatter.Options in [
+            [.withInternetDateTime, .withFractionalSeconds],
+            [.withInternetDateTime],
+        ] {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = options
+            if let d = f.date(from: raw) { return d }
         }
-        if normalized.hasSuffix("+00:00") {
-            normalized = String(normalized.dropLast(6)) + "Z"
-        }
-        return basic.date(from: normalized)
+        var s = raw.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+        if s.hasSuffix("+00:00") { s = String(s.dropLast(6)) + "Z" }
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: s)
     }
 }
 
@@ -161,7 +119,6 @@ private struct OAuthBody: Decodable {
 private struct TimeWindowDTO: Decodable {
     let utilization: Double?
     let resetsAt: String?
-
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
@@ -174,7 +131,6 @@ private struct ExtraUsageDTO: Decodable {
     let usedCredits: Double?
     let monthlyLimit: Double?
     let resetsAt: String?
-
     enum CodingKeys: String, CodingKey {
         case isEnabled = "is_enabled"
         case utilization
@@ -189,25 +145,19 @@ private struct LimitDTO: Decodable {
     let percent: Double?
     let severity: String?
     let resetsAt: String?
-    let scope: ScopeDTO?
+    let scope: Scope?
+
+    struct Scope: Decodable {
+        let model: Model?
+        struct Model: Decodable {
+            let displayName: String?
+            enum CodingKeys: String, CodingKey { case displayName = "display_name" }
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
-        case kind
-        case percent
-        case severity
+        case kind, percent, severity
         case resetsAt = "resets_at"
         case scope
-    }
-}
-
-private struct ScopeDTO: Decodable {
-    let model: ModelDTO?
-}
-
-private struct ModelDTO: Decodable {
-    let displayName: String?
-
-    enum CodingKeys: String, CodingKey {
-        case displayName = "display_name"
     }
 }
