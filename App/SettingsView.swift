@@ -345,6 +345,10 @@ struct SettingsView: View {
                 value: diagnostics.bundledHelpersAvailable ? "Available" : "Missing"
             )
             LabeledContent(
+                "Installed helper binary",
+                value: diagnostics.helperBinaryAvailable ? "Present" : "Missing"
+            )
+            LabeledContent(
                 "Legacy usage file",
                 value: diagnostics.hasLegacyUsageWarning ? "Needs attention" : "Clear"
             )
@@ -364,11 +368,28 @@ struct SettingsView: View {
                 Task { await model.runHelperSetup() }
             }
             .disabled(model.isSettingUpHelpers || !model.canMutateRegistry)
+            Button {
+                Task { await model.refreshUsageNow() }
+            } label: {
+                if model.isRefreshingUsage {
+                    ProgressView()
+                } else {
+                    Label("Refresh usage now", systemImage: "arrow.clockwise.circle")
+                }
+            }
+            .disabled(
+                model.isRefreshingUsage
+                    || model.isSettingUpHelpers
+                    || !diagnostics.helperBinaryAvailable
+            )
             if let output = model.setupOutput {
                 Text(output)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
             }
+            Text("Meter visibility: Notification Center → Edit Widgets → RunwayGauge.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

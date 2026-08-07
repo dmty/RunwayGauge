@@ -53,9 +53,9 @@ func decodesNone() throws {
 @Test("rejects an unsupported schema")
 func rejectsSchema() {
     let data = json("""
-    {"schema":2,"source":"claude-code","updatedAt":1785812495,"origin":"poll","windows":[]}
+    {"schema":3,"source":"claude-code","updatedAt":1785812495,"origin":"poll","windows":[]}
     """)
-    #expect(throws: UsageDecodeError.unsupportedSchema(2)) { try UsageRecord.decode(data) }
+    #expect(throws: UsageDecodeError.unsupportedSchema(3)) { try UsageRecord.decode(data) }
 }
 
 @Test("rejects malformed json")
@@ -78,4 +78,50 @@ func rejectsPartialWindow() {
             windowsJSON: #"[{"id":"five_hour","label":"Session"}]"#
         ))
     }
+}
+
+@Test func schema1RecordStillDecodes() throws {
+    let json = """
+    {"schema":1,"accountId":"acc_x","source":"claude-code","updatedAt":1,
+     "origin":"poll","windows":[{"id":"five_hour","label":"Session",
+     "usedPercent":10,"resetsAt":2}]}
+    """.data(using: .utf8)!
+    let record = try UsageRecord.decode(json)
+    #expect(record.windows.count == 1)
+    #expect(record.plan == nil)
+    #expect(record.fetchStatus == nil)
+    #expect(record.windows[0].severity == nil)
+}
+
+@Test func schema2RoundTripPreservesSeverityAndFetchStatus() throws {
+    let original = UsageRecord(
+        accountId: "acc_x",
+        source: "claude-code",
+        updatedAt: epoch(100),
+        origin: "poll",
+        windows: [
+            UsageWindow(
+                id: "five_hour",
+                label: "Session",
+                usedPercent: 10,
+                resetsAt: epoch(200),
+                severity: "critical",
+                kind: "session"
+            )
+        ],
+        plan: "Max",
+        fetchStatus: FetchStatus(
+            state: .rateLimited,
+            message: "slow down",
+            retryAfterAt: epoch(300),
+            httpStatus: 429,
+            updatedAt: epoch(100)
+        )
+    )
+    let data = try UsageRecord.encode(original)
+    let decoded = try UsageRecord.decode(data)
+    #expect(decoded == original)
+
+    let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    #expect(object?["schema"] as? Int == 2)
 }

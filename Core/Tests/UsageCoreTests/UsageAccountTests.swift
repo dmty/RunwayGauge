@@ -78,6 +78,6 @@ struct UsageAccountTests {
 
         try writeUsage(payload(accountId: nil), accountId: "acc_one", home: home)
         #expect(UsageStore.load(accountId: "acc_one", home: home) == .unreadable)
-        #expect(UsageRecord.currentSchema == 1)
+        #expect(UsageRecord.currentSchema == 2)
     }
 }

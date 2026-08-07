@@ -36,12 +36,17 @@ targets:
       - path: App
       - path: Shared/CycleAccountIntent.swift
       - path: Shared/OpenSettingsIntent.swift
+      - path: Shared/UsageDisplayIntent.swift
       - path: AppIcon.icon
       - path: scripts/helpers-bundle/Helpers
         type: folder
         buildPhase: resources
       - path: scripts/install-helpers-from-bundle.sh
         buildPhase: resources
+    preBuildScripts:
+      - name: Sync helpers bundle
+        basedOnDependencyAnalysis: false
+        script: "${SRCROOT}/scripts/sync-helpers-bundle.sh"
     dependencies:
       - package: UsageCore
         product: UsageCore
@@ -61,6 +66,7 @@ targets:
       - Widget
       - path: Shared/CycleAccountIntent.swift
       - path: Shared/OpenSettingsIntent.swift
+      - path: Shared/UsageDisplayIntent.swift
     dependencies:
       - package: UsageCore
         product: UsageCore

@@ -13,12 +13,12 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 input=$(cat)
 pipe_input() { printf '%s' "$input" | "$@"; }
 
-WRITER="$DIR/write-claude-usage.sh"
-[[ -n "${BROKEN_WRITER:-}" ]] && WRITER="$DIR/does-not-exist.sh"
+HELPER="$DIR/runwaygauge-helper"
+[[ -n "${BROKEN_WRITER:-}" ]] && HELPER="$DIR/does-not-exist"
 
 # Backgrounded and fully silenced: the widget must never be able to slow, break,
-# or add noise to the statusline.
-pipe_input "$WRITER" >/dev/null 2>&1 &
+# or add noise to the statusline. Account resolution uses CLAUDE_CONFIG_DIR + registry.
+pipe_input "$HELPER" write >/dev/null 2>&1 &
 [[ -n "$INNER" ]] && pipe_input bash -c "$INNER"
 
 exit 0

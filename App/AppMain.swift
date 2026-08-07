@@ -27,6 +27,7 @@ final class AppModel: ObservableObject {
     @Published var actionError: String?
     @Published var setupOutput: String?
     @Published var isSettingUpHelpers = false
+    @Published var isRefreshingUsage = false
 
     init() {
         Task { await bootstrap() }
@@ -122,6 +123,18 @@ final class AppModel: ObservableObject {
         }
         setupOutput = result.output
         isSettingUpHelpers = false
+    }
+
+    func refreshUsageNow() async {
+        guard canMutateRegistry else { return }
+        isRefreshingUsage = true
+        setupOutput = nil
+        defer { isRefreshingUsage = false }
+        let result = await HelperSetup.refreshUsageNow()
+        setupOutput = result.output
+        if result.succeeded {
+            WidgetCenter.shared.reloadTimelines(ofKind: "UsageWidget")
+        }
     }
 }
 

@@ -20,7 +20,6 @@ jobs:
       - name: Shell tests
         run: |
           ./tests/test-writer.sh
-          ./tests/test-poller.sh
           ./tests/test-helper-setup.sh
           ./tests/test-cap-output.sh
       - name: Release build smoke

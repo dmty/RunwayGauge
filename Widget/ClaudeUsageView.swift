@@ -6,15 +6,17 @@ struct ClaudeUsageView: View {
     let freshness: Freshness
     let now: Date
     let compact: Bool
+    var options: UsageDisplayOptions = .default
 
     private let formatter = UsageFormatter(timeZone: .current)
     private var contentPadding: CGFloat { compact ? 14 : 16 }
 
     var body: some View {
-        if record.windows.isEmpty {
+        let windows = options.visibleWindows(from: record)
+        if windows.isEmpty {
             message("No usage data yet — start a Claude Code session.")
         } else {
-            rows(record: record, freshness: freshness)
+            rows(windows: windows, freshness: freshness)
         }
     }
 
@@ -26,7 +28,7 @@ struct ClaudeUsageView: View {
             .padding(contentPadding)
     }
 
-    private func rows(record: UsageRecord, freshness: Freshness) -> some View {
+    private func rows(windows: [UsageWindow], freshness: Freshness) -> some View {
         let stale = freshness != .fresh
         let ageSuffix = switch freshness {
         case .fresh: ""
@@ -42,14 +44,31 @@ struct ClaudeUsageView: View {
                     // Leave room for cycle + settings controls in the top-trailing corner.
                     .padding(.trailing, 44)
             }
-            ForEach(record.windows, id: \.id) { window in
+            if options.showPlanLabel, let plan = record.plan, !plan.isEmpty {
+                Text(plan)
+                    .font(.system(size: compact ? 10 : 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, compact ? 44 : 0)
+            }
+            ForEach(windows, id: \.id) { window in
+                let notStarted = options.showSessionNotStarted
+                    && window.id == "five_hour"
+                    && window.usedPercent <= 0
                 UsageBar(
                     label: label(for: window),
                     window: window,
-                    resetLine: resetLine(for: window, ageSuffix: ageSuffix),
+                    level: options.level(for: window),
+                    trailingText: notStarted ? "Not started" : nil,
+                    resetLine: notStarted ? "Not started" : resetLine(for: window, ageSuffix: ageSuffix),
                     dimmed: stale,
                     compact: compact
                 )
+            }
+            if let fetchLine = fetchStatusLine {
+                Text(fetchLine)
+                    .font(.system(size: compact ? 10 : 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
         .padding(contentPadding)
@@ -72,5 +91,13 @@ struct ClaudeUsageView: View {
             style: compact ? .short : .long
         )
         return compact ? "resets \(reset)\(ageSuffix)" : "Resets \(reset)\(ageSuffix)"
+    }
+
+    private var fetchStatusLine: String? {
+        guard options.showFetchStatus, let status = record.fetchStatus, status.state != .ok else {
+            return nil
+        }
+        if let message = status.message, !message.isEmpty { return message }
+        return status.state == .rateLimited ? "Rate limited" : "Fetch failed"
     }
 }

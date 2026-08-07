@@ -17,9 +17,9 @@ macOS 14+, Xcode, `jq`, and `xcodegen`:
 2. Open the DMG and drag `RunwayGauge.app` to Applications.
 3. Launch the app. macOS Gatekeeper may block the ad-hoc signed build the first time — right-click the app → **Open** → **Open** again to confirm.
 4. Click **Set up data collection** in the app. This copies bundled helper scripts to Application Support and installs the statusline writer and background poller.
-5. Add the small or medium widget from Notification Center → Edit Widgets.
+5. Add the small or medium widget from Notification Center → **Edit Widgets** → **RunwayGauge**.
 
-**Requires `jq` on your Mac** (`brew install jq`). The app and its LaunchAgent search standard binary locations themselves — Apple Silicon Homebrew (`/opt/homebrew/bin`), Intel Homebrew (`/usr/local/bin`), and system paths — so you do not need to modify global `launchctl` PATH.
+**Requires `jq` for helper setup only** (`brew install jq`) — statusline install edits Claude `settings.json`; poll/write use the Swift helper. The app and LaunchAgent search `/opt/homebrew/bin`, `/usr/local/bin`, and system paths.
 
 ## Build and install
 
@@ -27,7 +27,7 @@ macOS 14+, Xcode, `jq`, and `xcodegen`:
 
 This installs `RunwayGauge.app` in `/Applications` and launches it once so
 the widget registers. Add the small or medium widget from Notification Center
-→ Edit Widgets.
+→ **Edit Widgets** → **RunwayGauge**.
 
 ## Accounts and data collection
 
@@ -53,6 +53,8 @@ widget. Optional rotation advances through pinned accounts on a best-effort
 WidgetKit timeline; macOS may deliver entries late. The minimum interval is
 five minutes (300 seconds).
 
+**Refresh usage now** in Settings forces an immediate poll; meter visibility toggles live under Notification Center → **Edit Widgets** → **RunwayGauge**.
+
 The setup button copies the bundled helpers to Application Support, preserves
 and backs up existing Claude `settings.json` statuslines, and installs the
 background poller. The registry and per-account usage files live in the widget
@@ -72,7 +74,6 @@ inspect health, and install helpers. The widget extension remains sandboxed.
 
     (cd Core && swift test)
     ./tests/test-writer.sh
-    ./tests/test-poller.sh
     ./tests/test-helper-lifecycle.sh
     ./tests/test-helper-setup.sh
     ./tests/test-helper-bundle-sync.sh

@@ -16,8 +16,9 @@ struct UsageEntry: TimelineEntry {
     let loadResult: UsageLoadResult?
     let freshness: Freshness?
     let pinnedAccountCount: Int
+    let options: UsageDisplayOptions
 
-    static func setup(at date: Date) -> UsageEntry {
+    static func setup(at date: Date, options: UsageDisplayOptions = .default) -> UsageEntry {
         UsageEntry(
             date: date,
             accountID: nil,
@@ -27,7 +28,8 @@ struct UsageEntry: TimelineEntry {
             record: nil,
             loadResult: nil,
             freshness: nil,
-            pinnedAccountCount: 0
+            pinnedAccountCount: 0,
+            options: options
         )
     }
 }
@@ -41,6 +43,17 @@ struct UsageTimelineBuilder {
     let now: () -> Date
     let loadRegistry: () throws -> AccountRegistry
     let loadUsage: (String) -> UsageLoadResult
+
+    static func plan(
+        options: UsageDisplayOptions = .default,
+        now: Date = Date()
+    ) -> UsageTimelinePlan {
+        (try? UsageTimelineBuilder(now: { now }).makePlan(options: options))
+            ?? UsageTimelinePlan(
+                entries: [.setup(at: now, options: options)],
+                refreshAfter: now.addingTimeInterval(TimelineRefresh.interval)
+            )
+    }
 
     init(
         now: @escaping () -> Date = Date.init,
@@ -56,18 +69,23 @@ struct UsageTimelineBuilder {
         self.loadUsage = loadUsage
     }
 
-    func makePlan() throws -> UsageTimelinePlan {
+    func makePlan(options: UsageDisplayOptions = .default) throws -> UsageTimelinePlan {
         let currentDate = now()
         var registry = try loadRegistry()
         let pinned = AccountSelection.pinnedAccounts(in: registry)
         guard !pinned.isEmpty else {
-            return staticRefresh([.setup(at: currentDate)], at: currentDate)
+            return staticRefresh([.setup(at: currentDate, options: options)], at: currentDate)
         }
 
         repairSelection(in: &registry, pinned: pinned, at: currentDate)
 
-        guard let current = entry(at: currentDate, registry: registry, pinnedCount: pinned.count) else {
-            return staticRefresh([.setup(at: currentDate)], at: currentDate)
+        guard let current = entry(
+            at: currentDate,
+            registry: registry,
+            pinnedCount: pinned.count,
+            options: options
+        ) else {
+            return staticRefresh([.setup(at: currentDate, options: options)], at: currentDate)
         }
 
         guard registry.prefs.rotateEnabled,
@@ -81,7 +99,12 @@ struct UsageTimelineBuilder {
         let elapsed = max(0, currentDate.timeIntervalSince1970 - anchor)
         let boundary = Date(timeIntervalSince1970: anchor + (floor(elapsed / interval) + 1) * interval)
         let nextDate = max(boundary, currentDate.addingTimeInterval(TimelineRefresh.interval))
-        guard let next = entry(at: nextDate, registry: registry, pinnedCount: pinned.count) else {
+        guard let next = entry(
+            at: nextDate,
+            registry: registry,
+            pinnedCount: pinned.count,
+            options: options
+        ) else {
             return UsageTimelinePlan(entries: [current], refreshAfter: nil)
         }
         return UsageTimelinePlan(entries: [current, next], refreshAfter: nil)
@@ -103,7 +126,8 @@ struct UsageTimelineBuilder {
     private func entry(
         at date: Date,
         registry: AccountRegistry,
-        pinnedCount: Int
+        pinnedCount: Int,
+        options: UsageDisplayOptions
     ) -> UsageEntry? {
         guard let account = AccountSelection.displayedAccount(at: date, in: registry) else {
             return nil
@@ -118,8 +142,11 @@ struct UsageTimelineBuilder {
             paneModel: SourceCatalog.paneModel(for: account, record: record),
             record: record,
             loadResult: result,
-            freshness: record.map { Freshness.evaluate($0, now: date) },
-            pinnedAccountCount: pinnedCount
+            freshness: record.map {
+                Freshness.evaluate($0, now: date, windows: options.visibleWindows(from: $0))
+            },
+            pinnedAccountCount: pinnedCount,
+            options: options
         )
     }
 }

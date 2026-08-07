@@ -5,8 +5,8 @@
   <key>Label</key><string>com.mirabilia.runwaygauge.claudeusage</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/bash</string>
-    <string>__SCRIPT__</string>
+    <string>__HELPER__</string>
+    <string>poll</string>
   </array>
   <key>StartInterval</key><integer>600</integer>
   <key>RunAtLoad</key><true/>

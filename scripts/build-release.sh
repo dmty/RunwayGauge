@@ -17,15 +17,14 @@ xcodebuild -project RunwayGauge.xcodeproj \
   build
 
 BUILT="$DERIVED/Build/Products/Release/$APP_NAME"
+RES="$BUILT/Contents/Resources"
 [[ -d "$BUILT" ]] || { echo "missing app: $BUILT" >&2; exit 1; }
-[[ -x "$BUILT/Contents/Resources/Helpers/install-statusline.sh" ]] || {
-  echo "bundled Helpers resource is missing" >&2
-  exit 1
-}
-[[ -f "$BUILT/Contents/Resources/install-helpers-from-bundle.sh" ]] || {
-  echo "helper bootstrap resource is missing" >&2
-  exit 1
-}
+for required in \
+  "$RES/Helpers/install-statusline.sh" \
+  "$RES/Helpers/runwaygauge-helper" \
+  "$RES/install-helpers-from-bundle.sh"; do
+  [[ -e "$required" ]] || { echo "missing bundled resource: $required" >&2; exit 1; }
+done
 
 for plist in \
   "$BUILT/Contents/Info.plist" \

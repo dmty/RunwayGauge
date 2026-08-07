@@ -19,3 +19,9 @@ func levelBoundaries(percent: Double, expected: UsageLevel) {
 func negativePercent() {
     #expect(UsageLevel(usedPercent: -5) == .normal)
 }
+
+@Test func levelPrefersSeverityWhenProvided() {
+    #expect(UsageLevel(usedPercent: 10, severity: "critical") == .critical)
+    #expect(UsageLevel(usedPercent: 99, severity: "normal") == .normal)
+    #expect(UsageLevel(usedPercent: 90, severity: nil) == .warning)
+}

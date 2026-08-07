@@ -3,29 +3,19 @@ import SwiftUI
 import UsageCore
 import WidgetKit
 
-struct UsageProvider: TimelineProvider {
-    private func plan(at now: Date = Date()) -> UsageTimelinePlan {
-        (try? UsageTimelineBuilder(now: { now }).makePlan())
-            ?? UsageTimelinePlan(
-                entries: [.setup(at: now)],
-                refreshAfter: now.addingTimeInterval(TimelineRefresh.interval)
-            )
+struct UsageProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> UsageEntry { .setup(at: Date()) }
+
+    func snapshot(for configuration: UsageDisplayIntent, in context: Context) async -> UsageEntry {
+        UsageTimelineBuilder.plan(options: configuration.asOptions()).entries[0]
     }
 
-    func placeholder(in context: Context) -> UsageEntry {
-        .setup(at: Date())
-    }
-
-    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
-        completion(plan().entries[0])
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
-        let plan = plan()
-        completion(Timeline(
+    func timeline(for configuration: UsageDisplayIntent, in context: Context) async -> Timeline<UsageEntry> {
+        let plan = UsageTimelineBuilder.plan(options: configuration.asOptions())
+        return Timeline(
             entries: plan.entries,
             policy: plan.refreshAfter.map(TimelineReloadPolicy.after) ?? .atEnd
-        ))
+        )
     }
 }
 
@@ -86,7 +76,8 @@ struct UsageWidgetEntryView: View {
                         record: record,
                         freshness: freshness,
                         now: entry.date,
-                        compact: family == .systemSmall
+                        compact: family == .systemSmall,
+                        options: entry.options
                     )
                 } else {
                     message("No usage data yet.")
@@ -106,7 +97,7 @@ struct UsageWidgetEntryView: View {
 
 struct UsageWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "UsageWidget", provider: UsageProvider()) { entry in
+        AppIntentConfiguration(kind: "UsageWidget", intent: UsageDisplayIntent.self, provider: UsageProvider()) { entry in
             UsageWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Claude Code Usage")
