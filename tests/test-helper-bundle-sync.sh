@@ -18,8 +18,12 @@ done
 ./scripts/sync-helpers-bundle.sh
 bundle="scripts/helpers-bundle/Helpers"
 for relative in "${declared[@]}"; do
-  src="scripts/$relative"
   dst="$bundle/$relative"
+  if [[ "$relative" == "runwaygauge-helper" ]]; then
+    [[ -x "$dst" ]] && pass "$relative present and executable" || fail "$relative present and executable"
+    continue
+  fi
+  src="scripts/$relative"
   [[ -f "$src" && -f "$dst" ]] && cmp -s "$src" "$dst" \
     && pass "$relative matches bundled copy" || fail "$relative matches bundled copy"
 done

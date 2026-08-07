@@ -45,9 +45,7 @@ targets:
     preBuildScripts:
       - name: Sync helpers bundle
         basedOnDependencyAnalysis: false
-        script: |
-          set -euo pipefail
-          "${SRCROOT}/scripts/sync-helpers-bundle.sh"
+        script: "${SRCROOT}/scripts/sync-helpers-bundle.sh"
     dependencies:
       - package: UsageCore
         product: UsageCore

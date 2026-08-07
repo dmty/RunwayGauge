@@ -13,7 +13,8 @@ make_stub_helpers() {
   mkdir -p "$root"
   printf '#!/bin/bash\nexit %s\n' "$statusline_exit" > "$root/install-statusline.sh"
   printf '#!/bin/bash\nexit %s\n' "$poller_exit" > "$root/install-poller.sh"
-  chmod 755 "$root/install-statusline.sh" "$root/install-poller.sh"
+  printf '#!/bin/bash\nexit 0\n' > "$root/runwaygauge-helper"
+  chmod 755 "$root/install-statusline.sh" "$root/install-poller.sh" "$root/runwaygauge-helper"
 }
 
 run_bootstrap() {
