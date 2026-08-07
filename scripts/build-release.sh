@@ -22,6 +22,10 @@ BUILT="$DERIVED/Build/Products/Release/$APP_NAME"
   echo "bundled Helpers resource is missing" >&2
   exit 1
 }
+[[ -x "$BUILT/Contents/Resources/Helpers/runwaygauge-helper" ]] || {
+  echo "bundled runwaygauge-helper binary is missing" >&2
+  exit 1
+}
 [[ -f "$BUILT/Contents/Resources/install-helpers-from-bundle.sh" ]] || {
   echo "helper bootstrap resource is missing" >&2
   exit 1

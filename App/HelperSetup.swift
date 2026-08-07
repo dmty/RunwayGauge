@@ -11,12 +11,14 @@ struct HelperDiagnostics: Sendable {
     var installedDirectory: String
     var installedDirectoryExists: Bool
     var bundledHelpersAvailable: Bool
+    var helperBinaryAvailable: Bool
     var configuredFingerprint: String?
     var hasLegacyUsageWarning: Bool
 }
 
 enum HelperSetup {
     private static let launchAgentPlistName = "com.mirabilia.runwaygauge.claudeusage.plist"
+    private static let helperBinaryName = "runwaygauge-helper"
     private static let configuredFingerprintKey = "helperConfiguredFingerprint"
     private static let jqSearchPaths = [
         "/opt/homebrew/bin/jq",
@@ -34,6 +36,17 @@ enum HelperSetup {
     static var installDirectoryURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("RunwayGauge/helpers", isDirectory: true)
+    }
+
+    static func helperBinaryURL(in helpersDirectory: URL) -> URL {
+        helpersDirectory.appendingPathComponent(helperBinaryName)
+    }
+
+    static func isHelperBinaryAvailable(
+        in helpersDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        fileManager.isExecutableFile(atPath: helperBinaryURL(in: helpersDirectory).path)
     }
 
     static func isInstalled(
@@ -61,6 +74,12 @@ enum HelperSetup {
             return SetupResult(
                 succeeded: false,
                 output: "Helpers directory not found in app bundle."
+            )
+        }
+        guard isHelperBinaryAvailable(in: helpers) else {
+            return SetupResult(
+                succeeded: false,
+                output: "runwaygauge-helper binary not found in app bundle."
             )
         }
         guard findJQ(fileManager: .default) != nil else {
@@ -110,6 +129,11 @@ enum HelperSetup {
         fileManager: FileManager = .default,
         homeDirectoryURL: URL? = nil
     ) -> HelperDiagnostics {
+        let bundled = bundledHelpersURL
+        let bundledHelpersAvailable = bundled.map {
+            fileManager.fileExists(atPath: $0.path)
+                && isHelperBinaryAvailable(in: $0, fileManager: fileManager)
+        } ?? false
         return HelperDiagnostics(
             launchAgentInstalled: isInstalled(
                 fileManager: fileManager,
@@ -117,7 +141,11 @@ enum HelperSetup {
             ),
             installedDirectory: installDirectoryURL.path,
             installedDirectoryExists: fileManager.fileExists(atPath: installDirectoryURL.path),
-            bundledHelpersAvailable: bundledHelpersURL != nil,
+            bundledHelpersAvailable: bundledHelpersAvailable,
+            helperBinaryAvailable: isHelperBinaryAvailable(
+                in: installDirectoryURL,
+                fileManager: fileManager
+            ),
             configuredFingerprint: UserDefaults.standard.string(
                 forKey: configuredFingerprintKey
             ),

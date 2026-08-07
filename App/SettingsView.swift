@@ -345,6 +345,10 @@ struct SettingsView: View {
                 value: diagnostics.bundledHelpersAvailable ? "Available" : "Missing"
             )
             LabeledContent(
+                "Installed helper binary",
+                value: diagnostics.helperBinaryAvailable ? "Present" : "Missing"
+            )
+            LabeledContent(
                 "Legacy usage file",
                 value: diagnostics.hasLegacyUsageWarning ? "Needs attention" : "Clear"
             )

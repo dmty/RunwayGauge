@@ -131,6 +131,9 @@ public enum UsageCommit {
 }
 
 #if canImport(Darwin)
+@_silgen_name("flock")
+private func usageCommitFlock(_ descriptor: Int32, _ operation: Int32) -> Int32
+
 /// Sidecar `.json.lock` using BSD `flock(2)` — same advisory lock family as
 /// `/usr/bin/lockf` in `scripts/lib/usage-commit.sh` (fcntl record locks do not interoperate).
 private final class ExclusiveFileLock {
@@ -147,7 +150,7 @@ private final class ExclusiveFileLock {
         } catch {
             throw UsageCommitError.lockFailed
         }
-        if flock(handle.fileDescriptor, LOCK_EX) != 0 {
+        if usageCommitFlock(handle.fileDescriptor, LOCK_EX) != 0 {
             try? handle.close()
             throw UsageCommitError.lockFailed
         }
@@ -156,7 +159,7 @@ private final class ExclusiveFileLock {
 
     func unlock() {
         guard locked else { return }
-        _ = flock(handle.fileDescriptor, LOCK_UN)
+        _ = usageCommitFlock(handle.fileDescriptor, LOCK_UN)
         try? handle.close()
         locked = false
     }

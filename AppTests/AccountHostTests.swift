@@ -264,6 +264,7 @@ struct AccountHostTests {
             installedDirectory: "/tmp/helpers",
             installedDirectoryExists: true,
             bundledHelpersAvailable: true,
+            helperBinaryAvailable: true,
             configuredFingerprint: fingerprint,
             hasLegacyUsageWarning: true
         )

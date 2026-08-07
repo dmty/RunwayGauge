@@ -42,6 +42,12 @@ targets:
         buildPhase: resources
       - path: scripts/install-helpers-from-bundle.sh
         buildPhase: resources
+    preBuildScripts:
+      - name: Sync helpers bundle
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          "${SRCROOT}/scripts/sync-helpers-bundle.sh"
     dependencies:
       - package: UsageCore
         product: UsageCore

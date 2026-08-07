@@ -7,9 +7,14 @@ SRC="${1:?}"; DEST="${2:?}"
   echo "bundled installers are missing or not executable" >&2
   exit 2
 }
+[[ -x "$SRC/runwaygauge-helper" ]] || {
+  echo "bundled runwaygauge-helper is missing or not executable" >&2
+  exit 2
+}
 if ! mkdir -p "$DEST" || \
    ! rsync -a --delete "$SRC/" "$DEST/" || \
-   ! find "$DEST" -type f -name '*.sh' -exec chmod 755 {} +; then
+   ! find "$DEST" -type f -name '*.sh' -exec chmod 755 {} + || \
+   ! chmod 755 "$DEST/runwaygauge-helper"; then
   echo "failed to prepare installed helper directory" >&2
   exit 2
 fi

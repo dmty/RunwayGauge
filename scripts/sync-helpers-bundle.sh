@@ -8,8 +8,6 @@ RUNTIME_HELPERS=(
   uninstall-statusline.sh
   install-poller.sh
   statusline-wrapper.sh
-  write-claude-usage.sh
-  poll-claude-usage.sh
   com.mirabilia.runwaygauge.claudeusage.plist
   lib/accounts.sh
   lib/claude-config.sh
@@ -21,6 +19,7 @@ RUNTIME_HELPERS=(
 
 if [[ "${1:-}" == "--list" ]]; then
   printf '%s\n' "${RUNTIME_HELPERS[@]}"
+  printf '%s\n' "runwaygauge-helper"
   exit 0
 fi
 
@@ -33,3 +32,11 @@ for relative in "${RUNTIME_HELPERS[@]}"; do
     *) chmod 755 "$DEST/$relative" ;;
   esac
 done
+
+echo "Building RunwayGaugeHelper (release)..."
+(
+  cd "$ROOT/Core"
+  swift build -c release --product RunwayGaugeHelper
+)
+cp "$ROOT/Core/.build/release/RunwayGaugeHelper" "$DEST/runwaygauge-helper"
+chmod 755 "$DEST/runwaygauge-helper"
