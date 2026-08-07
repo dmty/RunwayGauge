@@ -51,15 +51,15 @@ struct ClaudeUsageView: View {
                     .padding(.trailing, compact ? 44 : 0)
             }
             ForEach(windows, id: \.id) { window in
-                let notStarted = isSessionNotStarted(window)
+                let notStarted = options.showSessionNotStarted
+                    && window.id == "five_hour"
+                    && window.usedPercent <= 0
                 UsageBar(
                     label: label(for: window),
                     window: window,
                     level: options.level(for: window),
                     trailingText: notStarted ? "Not started" : nil,
-                    resetLine: notStarted
-                        ? "Not started"
-                        : resetLine(for: window, ageSuffix: ageSuffix),
+                    resetLine: notStarted ? "Not started" : resetLine(for: window, ageSuffix: ageSuffix),
                     dimmed: stale,
                     compact: compact
                 )
@@ -93,25 +93,11 @@ struct ClaudeUsageView: View {
         return compact ? "resets \(reset)\(ageSuffix)" : "Resets \(reset)\(ageSuffix)"
     }
 
-    private func isSessionNotStarted(_ window: UsageWindow) -> Bool {
-        options.showSessionNotStarted
-            && window.id == "five_hour"
-            && window.usedPercent <= 0
-    }
-
     private var fetchStatusLine: String? {
-        guard options.showFetchStatus,
-              let status = record.fetchStatus,
-              status.state != .ok else {
+        guard options.showFetchStatus, let status = record.fetchStatus, status.state != .ok else {
             return nil
         }
-        if let message = status.message, !message.isEmpty {
-            return message
-        }
-        return switch status.state {
-        case .rateLimited: "Rate limited"
-        case .failed: "Fetch failed"
-        case .ok: nil
-        }
+        if let message = status.message, !message.isEmpty { return message }
+        return status.state == .rateLimited ? "Rate limited" : "Fetch failed"
     }
 }

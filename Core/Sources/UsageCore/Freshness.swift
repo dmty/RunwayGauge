@@ -12,15 +12,8 @@ public enum Freshness: Sendable, Equatable {
         windows: [UsageWindow]? = nil
     ) -> Freshness {
         let age = max(0, now.timeIntervalSince(record.updatedAt))
-        let checked = windows ?? record.windows
-
-        // A window whose reset time has passed has rolled over, so its percentage is
-        // wrong no matter how recently the file was written.
-        let rolledOver = checked.contains { $0.resetsAt <= now }
-
-        if rolledOver || age >= staleThreshold {
-            return .stale(age: age)
-        }
-        return .fresh
+        // ponytail: rolled-over visible windows force stale even when updatedAt is fresh
+        let rolledOver = (windows ?? record.windows).contains { $0.resetsAt <= now }
+        return rolledOver || age >= staleThreshold ? .stale(age: age) : .fresh
     }
 }

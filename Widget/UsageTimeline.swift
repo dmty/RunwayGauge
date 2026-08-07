@@ -44,6 +44,17 @@ struct UsageTimelineBuilder {
     let loadRegistry: () throws -> AccountRegistry
     let loadUsage: (String) -> UsageLoadResult
 
+    static func plan(
+        options: UsageDisplayOptions = .default,
+        now: Date = Date()
+    ) -> UsageTimelinePlan {
+        (try? UsageTimelineBuilder(now: { now }).makePlan(options: options))
+            ?? UsageTimelinePlan(
+                entries: [.setup(at: now, options: options)],
+                refreshAfter: now.addingTimeInterval(TimelineRefresh.interval)
+            )
+    }
+
     init(
         now: @escaping () -> Date = Date.init,
         loadRegistry: @escaping () throws -> AccountRegistry = {

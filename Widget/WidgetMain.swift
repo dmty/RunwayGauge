@@ -4,30 +4,14 @@ import UsageCore
 import WidgetKit
 
 struct UsageProvider: AppIntentTimelineProvider {
-    private func plan(
-        options: UsageDisplayOptions,
-        at now: Date = Date()
-    ) -> UsageTimelinePlan {
-        (try? UsageTimelineBuilder(now: { now }).makePlan(options: options))
-            ?? UsageTimelinePlan(
-                entries: [.setup(at: now, options: options)],
-                refreshAfter: now.addingTimeInterval(TimelineRefresh.interval)
-            )
-    }
-
-    func placeholder(in context: Context) -> UsageEntry {
-        .setup(at: Date())
-    }
+    func placeholder(in context: Context) -> UsageEntry { .setup(at: Date()) }
 
     func snapshot(for configuration: UsageDisplayIntent, in context: Context) async -> UsageEntry {
-        plan(options: configuration.asOptions()).entries[0]
+        UsageTimelineBuilder.plan(options: configuration.asOptions()).entries[0]
     }
 
-    func timeline(
-        for configuration: UsageDisplayIntent,
-        in context: Context
-    ) async -> Timeline<UsageEntry> {
-        let plan = plan(options: configuration.asOptions())
+    func timeline(for configuration: UsageDisplayIntent, in context: Context) async -> Timeline<UsageEntry> {
+        let plan = UsageTimelineBuilder.plan(options: configuration.asOptions())
         return Timeline(
             entries: plan.entries,
             policy: plan.refreshAfter.map(TimelineReloadPolicy.after) ?? .atEnd
