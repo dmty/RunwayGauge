@@ -17,9 +17,9 @@ macOS 14+, Xcode, `jq`, and `xcodegen`:
 2. Open the DMG and drag `RunwayGauge.app` to Applications.
 3. Launch the app. macOS Gatekeeper may block the ad-hoc signed build the first time — right-click the app → **Open** → **Open** again to confirm.
 4. Click **Set up data collection** in the app. This copies bundled helper scripts to Application Support and installs the statusline writer and background poller.
-5. Add the small or medium widget from Notification Center → Edit Widgets.
+5. Add the small or medium widget from Notification Center → **Edit Widgets** → **RunwayGauge**.
 
-**Requires `jq` on your Mac** (`brew install jq`). The app and its LaunchAgent search standard binary locations themselves — Apple Silicon Homebrew (`/opt/homebrew/bin`), Intel Homebrew (`/usr/local/bin`), and system paths — so you do not need to modify global `launchctl` PATH.
+**Requires `jq` for helper setup** (`brew install jq`). Statusline installation (`install-statusline.sh`) still edits Claude `settings.json` with jq. Background polling and statusline writes use the native Swift helper and do not require jq at runtime. The app and its LaunchAgent search standard binary locations themselves — Apple Silicon Homebrew (`/opt/homebrew/bin`), Intel Homebrew (`/usr/local/bin`), and system paths — so you do not need to modify global `launchctl` PATH.
 
 ## Build and install
 
@@ -27,7 +27,7 @@ macOS 14+, Xcode, `jq`, and `xcodegen`:
 
 This installs `RunwayGauge.app` in `/Applications` and launches it once so
 the widget registers. Add the small or medium widget from Notification Center
-→ Edit Widgets.
+→ **Edit Widgets** → **RunwayGauge**.
 
 ## Accounts and data collection
 
@@ -52,6 +52,9 @@ the widget's cycle control. Selection is shared by every placed RunwayGauge
 widget. Optional rotation advances through pinned accounts on a best-effort
 WidgetKit timeline; macOS may deliver entries late. The minimum interval is
 five minutes (300 seconds).
+
+Use **Refresh usage now** in Settings to force an immediate poll of pinned
+Keychain accounts without waiting for the background LaunchAgent.
 
 The setup button copies the bundled helpers to Application Support, preserves
 and backs up existing Claude `settings.json` statuslines, and installs the

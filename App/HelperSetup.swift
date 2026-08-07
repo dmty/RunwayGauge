@@ -56,6 +56,16 @@ enum HelperSetup {
         )
     }
 
+    static func refreshUsageNow() async -> SetupResult {
+        let helperURL = installDirectoryURL.appendingPathComponent(helperBinaryName)
+        guard FileManager.default.isExecutableFile(atPath: helperURL.path) else {
+            return fail("Installed helper binary not found. Run Set up helpers first.")
+        }
+        return await Task.detached(priority: .userInitiated) {
+            runHelper(executableURL: helperURL, arguments: ["poll", "--force"])
+        }.value
+    }
+
     static func runSetup() async -> SetupResult {
         guard let bootstrap = Bundle.main.url(
             forResource: "install-helpers-from-bundle", withExtension: "sh"
@@ -133,6 +143,30 @@ enum HelperSetup {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [bootstrap.path, helpers.path, destination.path]
+        let result = runProcess(process)
+        let (summary, succeeded) = exitSummaries[result.status]
+            ?? ("Setup failed (exit code \(result.status)).", false)
+        return SetupResult(succeeded: succeeded, output: "\(summary)\n\n\(result.output)")
+    }
+
+    private static func runHelper(executableURL: URL, arguments: [String]) -> SetupResult {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = arguments
+        let result = runProcess(process)
+        if result.status == 0 {
+            return SetupResult(
+                succeeded: true,
+                output: "Usage refresh completed.\n\n\(result.output)"
+            )
+        }
+        return SetupResult(
+            succeeded: false,
+            output: "Usage refresh failed (exit code \(result.status)).\n\n\(result.output)"
+        )
+    }
+
+    private static func runProcess(_ process: Process) -> (status: Int32, output: String) {
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = processPath
         process.environment = environment
@@ -141,18 +175,15 @@ enum HelperSetup {
         process.standardOutput = pipe
         process.standardError = pipe
 
-        do { try process.run() } catch {
-            return fail("Failed to launch installer: \(error.localizedDescription)")
+        do {
+            try process.run()
+        } catch {
+            return (-1, "Failed to launch process: \(error.localizedDescription)")
         }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-
-        let capped = capOutput(String(data: data, encoding: .utf8) ?? "")
-        let status = process.terminationStatus
-        let (summary, succeeded) = exitSummaries[status]
-            ?? ("Setup failed (exit code \(status)).", false)
-        return SetupResult(succeeded: succeeded, output: "\(summary)\n\n\(capped)")
+        return (process.terminationStatus, capOutput(String(data: data, encoding: .utf8) ?? ""))
     }
 
     private static let exitSummaries: [Int32: (String, Bool)] = [
