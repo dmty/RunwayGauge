@@ -6,7 +6,6 @@ struct ClaudeUsageView: View {
     let freshness: Freshness
     let now: Date
     let compact: Bool
-    /// Task 7 will pass AppIntent configuration; until then keep legacy session+week bars.
     var options: UsageDisplayOptions = .default
 
     private let formatter = UsageFormatter(timeZone: .current)
@@ -45,15 +44,31 @@ struct ClaudeUsageView: View {
                     // Leave room for cycle + settings controls in the top-trailing corner.
                     .padding(.trailing, 44)
             }
+            if options.showPlanLabel, let plan = record.plan, !plan.isEmpty {
+                Text(plan)
+                    .font(.system(size: compact ? 10 : 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, compact ? 44 : 0)
+            }
             ForEach(windows, id: \.id) { window in
+                let notStarted = isSessionNotStarted(window)
                 UsageBar(
                     label: label(for: window),
                     window: window,
                     level: options.level(for: window),
-                    resetLine: resetLine(for: window, ageSuffix: ageSuffix),
+                    trailingText: notStarted ? "Not started" : nil,
+                    resetLine: notStarted
+                        ? "Not started"
+                        : resetLine(for: window, ageSuffix: ageSuffix),
                     dimmed: stale,
                     compact: compact
                 )
+            }
+            if let fetchLine = fetchStatusLine {
+                Text(fetchLine)
+                    .font(.system(size: compact ? 10 : 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
         .padding(contentPadding)
@@ -76,5 +91,27 @@ struct ClaudeUsageView: View {
             style: compact ? .short : .long
         )
         return compact ? "resets \(reset)\(ageSuffix)" : "Resets \(reset)\(ageSuffix)"
+    }
+
+    private func isSessionNotStarted(_ window: UsageWindow) -> Bool {
+        options.showSessionNotStarted
+            && window.id == "five_hour"
+            && window.usedPercent <= 0
+    }
+
+    private var fetchStatusLine: String? {
+        guard options.showFetchStatus,
+              let status = record.fetchStatus,
+              status.state != .ok else {
+            return nil
+        }
+        if let message = status.message, !message.isEmpty {
+            return message
+        }
+        return switch status.state {
+        case .rateLimited: "Rate limited"
+        case .failed: "Fetch failed"
+        case .ok: nil
+        }
     }
 }

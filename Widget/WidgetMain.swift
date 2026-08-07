@@ -3,11 +3,14 @@ import SwiftUI
 import UsageCore
 import WidgetKit
 
-struct UsageProvider: TimelineProvider {
-    private func plan(at now: Date = Date()) -> UsageTimelinePlan {
-        (try? UsageTimelineBuilder(now: { now }).makePlan())
+struct UsageProvider: AppIntentTimelineProvider {
+    private func plan(
+        options: UsageDisplayOptions,
+        at now: Date = Date()
+    ) -> UsageTimelinePlan {
+        (try? UsageTimelineBuilder(now: { now }).makePlan(options: options))
             ?? UsageTimelinePlan(
-                entries: [.setup(at: now)],
+                entries: [.setup(at: now, options: options)],
                 refreshAfter: now.addingTimeInterval(TimelineRefresh.interval)
             )
     }
@@ -16,16 +19,19 @@ struct UsageProvider: TimelineProvider {
         .setup(at: Date())
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
-        completion(plan().entries[0])
+    func snapshot(for configuration: UsageDisplayIntent, in context: Context) async -> UsageEntry {
+        plan(options: configuration.asOptions()).entries[0]
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
-        let plan = plan()
-        completion(Timeline(
+    func timeline(
+        for configuration: UsageDisplayIntent,
+        in context: Context
+    ) async -> Timeline<UsageEntry> {
+        let plan = plan(options: configuration.asOptions())
+        return Timeline(
             entries: plan.entries,
             policy: plan.refreshAfter.map(TimelineReloadPolicy.after) ?? .atEnd
-        ))
+        )
     }
 }
 
@@ -86,7 +92,8 @@ struct UsageWidgetEntryView: View {
                         record: record,
                         freshness: freshness,
                         now: entry.date,
-                        compact: family == .systemSmall
+                        compact: family == .systemSmall,
+                        options: entry.options
                     )
                 } else {
                     message("No usage data yet.")
@@ -106,7 +113,7 @@ struct UsageWidgetEntryView: View {
 
 struct UsageWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "UsageWidget", provider: UsageProvider()) { entry in
+        AppIntentConfiguration(kind: "UsageWidget", intent: UsageDisplayIntent.self, provider: UsageProvider()) { entry in
             UsageWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Claude Code Usage")

@@ -6,12 +6,17 @@ public enum Freshness: Sendable, Equatable {
 
     public static let staleThreshold: TimeInterval = 600
 
-    public static func evaluate(_ record: UsageRecord, now: Date) -> Freshness {
+    public static func evaluate(
+        _ record: UsageRecord,
+        now: Date,
+        windows: [UsageWindow]? = nil
+    ) -> Freshness {
         let age = max(0, now.timeIntervalSince(record.updatedAt))
+        let checked = windows ?? record.windows
 
         // A window whose reset time has passed has rolled over, so its percentage is
         // wrong no matter how recently the file was written.
-        let rolledOver = record.windows.contains { $0.resetsAt <= now }
+        let rolledOver = checked.contains { $0.resetsAt <= now }
 
         if rolledOver || age >= staleThreshold {
             return .stale(age: age)

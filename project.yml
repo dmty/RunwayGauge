@@ -36,6 +36,7 @@ targets:
       - path: App
       - path: Shared/CycleAccountIntent.swift
       - path: Shared/OpenSettingsIntent.swift
+      - path: Shared/UsageDisplayIntent.swift
       - path: AppIcon.icon
       - path: scripts/helpers-bundle/Helpers
         type: folder
@@ -65,6 +66,7 @@ targets:
       - Widget
       - path: Shared/CycleAccountIntent.swift
       - path: Shared/OpenSettingsIntent.swift
+      - path: Shared/UsageDisplayIntent.swift
     dependencies:
       - package: UsageCore
         product: UsageCore

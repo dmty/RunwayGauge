@@ -31,6 +31,7 @@ struct UsageTimelineBuilderTests {
         #expect(plan.entries.map(\.date) == [now, now.addingTimeInterval(300)])
         #expect(plan.entries.map(\.accountID) == ["acc_a", "acc_b"])
         #expect(plan.entries[1].freshness == .fresh)
+        #expect(plan.entries.map(\.options) == [.default, .default])
     }
 
     @Test("non-rotating timeline repairs selection in memory and refreshes in five minutes")
@@ -56,6 +57,92 @@ struct UsageTimelineBuilderTests {
             record: nil
         ))
         #expect(plan.entries[0].loadResult == .missing)
+    }
+
+    @Test("default options keep only session and week visible on entry record")
+    func defaultOptionsFilterOptionalWindows() throws {
+        let now = Date(timeIntervalSince1970: 3_000)
+        let builder = UsageTimelineBuilder(
+            now: { now },
+            loadRegistry: { registry(selected: "acc_a", rotate: false, interval: 900, anchor: nil) },
+            loadUsage: { id in .record(enrichedRecord(accountID: id, updatedAt: now)) }
+        )
+
+        let plan = try builder.makePlan(options: .default)
+        let entry = try #require(plan.entries.first)
+        let record = try #require(entry.record)
+
+        #expect(entry.options == .default)
+        #expect(entry.options.visibleWindows(from: record).map(\.id) == ["five_hour", "seven_day"])
+    }
+
+    @Test("enabled display options expose sonnet, scoped, and extra windows")
+    func enabledOptionsIncludeOptionalWindows() throws {
+        let now = Date(timeIntervalSince1970: 3_100)
+        var options = UsageDisplayOptions.default
+        options.showSonnetWeekly = true
+        options.showModelScopedLimits = true
+        options.showExtraUsage = true
+
+        let builder = UsageTimelineBuilder(
+            now: { now },
+            loadRegistry: { registry(selected: "acc_a", rotate: false, interval: 900, anchor: nil) },
+            loadUsage: { id in .record(enrichedRecord(accountID: id, updatedAt: now)) }
+        )
+
+        let plan = try builder.makePlan(options: options)
+        let entry = try #require(plan.entries.first)
+        let record = try #require(entry.record)
+
+        #expect(entry.options == options)
+        #expect(entry.options.visibleWindows(from: record).map(\.id) == [
+            "five_hour",
+            "seven_day",
+            "seven_day_sonnet",
+            "weekly_scoped_fable",
+            "extra_usage",
+        ])
+    }
+
+    @Test("freshness ignores rolled-over hidden optional windows")
+    func freshnessUsesVisibleWindowsOnly() throws {
+        let now = Date(timeIntervalSince1970: 4_000)
+        let builder = UsageTimelineBuilder(
+            now: { now },
+            loadRegistry: { registry(selected: "acc_a", rotate: false, interval: 900, anchor: nil) },
+            loadUsage: { id in
+                .record(
+                    UsageRecord(
+                        accountId: id,
+                        source: "claude-code",
+                        updatedAt: now.addingTimeInterval(-30),
+                        origin: "test",
+                        windows: [
+                            UsageWindow(
+                                id: "five_hour",
+                                label: "Session",
+                                usedPercent: 10,
+                                resetsAt: now.addingTimeInterval(600)
+                            ),
+                            UsageWindow(
+                                id: "seven_day_sonnet",
+                                label: "Sonnet",
+                                usedPercent: 20,
+                                resetsAt: now.addingTimeInterval(-60)
+                            ),
+                        ]
+                    )
+                )
+            }
+        )
+
+        let hidden = try builder.makePlan(options: .default)
+        #expect(hidden.entries[0].freshness == .fresh)
+
+        var showSonnet = UsageDisplayOptions.default
+        showSonnet.showSonnetWeekly = true
+        let visible = try builder.makePlan(options: showSonnet)
+        #expect(visible.entries[0].freshness == .stale(age: 30))
     }
 
     private func registry(
@@ -102,6 +189,22 @@ struct UsageTimelineBuilderTests {
                     usedPercent: 10,
                     resetsAt: updatedAt.addingTimeInterval(600)
                 ),
+            ]
+        )
+    }
+
+    private func enrichedRecord(accountID: String, updatedAt: Date) -> UsageRecord {
+        UsageRecord(
+            accountId: accountID,
+            source: "claude-code",
+            updatedAt: updatedAt,
+            origin: "test",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 10, resetsAt: updatedAt.addingTimeInterval(600)),
+                UsageWindow(id: "seven_day", label: "Week", usedPercent: 20, resetsAt: updatedAt.addingTimeInterval(86_400)),
+                UsageWindow(id: "seven_day_sonnet", label: "Sonnet", usedPercent: 30, resetsAt: updatedAt.addingTimeInterval(86_400)),
+                UsageWindow(id: "weekly_scoped_fable", label: "Fable", usedPercent: 40, resetsAt: updatedAt.addingTimeInterval(86_400)),
+                UsageWindow(id: "extra_usage", label: "Extra", usedPercent: 50, resetsAt: updatedAt.addingTimeInterval(86_400)),
             ]
         )
     }
