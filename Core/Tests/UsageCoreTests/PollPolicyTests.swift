@@ -39,21 +39,65 @@ private func fixtureURL(_ name: String) throws -> URL {
 struct PollPolicyTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    @Test("skips fresh file unless force")
-    func skipsFresh() {
+    @Test("skips fresh poll-origin file without fetchStatus unless force")
+    func skipsFreshPollOrigin() {
         let mtime = now.addingTimeInterval(-100)
-        #expect(!PollPolicy.shouldFetch(force: false, fileModificationDate: mtime, fetchStatus: nil, now: now))
-        #expect(PollPolicy.shouldFetch(force: true, fileModificationDate: mtime, fetchStatus: nil, now: now))
+        #expect(!PollPolicy.shouldFetch(
+            force: false, fileModificationDate: mtime, fetchStatus: nil, origin: "poll", now: now
+        ))
+        #expect(PollPolicy.shouldFetch(
+            force: true, fileModificationDate: mtime, fetchStatus: nil, origin: "poll", now: now
+        ))
+    }
+
+    @Test("fresh statusline mtime with missing poll fetchStatus still fetches")
+    func statuslineMtimeDoesNotSkipPoll() {
+        let freshMtime = now.addingTimeInterval(-30)
+        #expect(PollPolicy.shouldFetch(
+            force: false, fileModificationDate: freshMtime, fetchStatus: nil, origin: "statusline", now: now
+        ))
+    }
+
+    @Test("fresh statusline mtime with stale poll fetchStatus still fetches")
+    func stalePollAgeFetchesDespiteFreshStatuslineMtime() {
+        let freshMtime = now.addingTimeInterval(-30)
+        let stalePoll = FetchStatus(state: .ok, httpStatus: 200, updatedAt: now.addingTimeInterval(-900))
+        #expect(PollPolicy.shouldFetch(
+            force: false,
+            fileModificationDate: freshMtime,
+            fetchStatus: stalePoll,
+            origin: "statusline",
+            now: now
+        ))
+    }
+
+    @Test("recent poll fetchStatus skips even when file mtime is stale")
+    func recentPollAttemptSkips() {
+        let staleMtime = now.addingTimeInterval(-900)
+        let recentPoll = FetchStatus(state: .ok, httpStatus: 200, updatedAt: now.addingTimeInterval(-100))
+        #expect(!PollPolicy.shouldFetch(
+            force: false,
+            fileModificationDate: staleMtime,
+            fetchStatus: recentPoll,
+            origin: "statusline",
+            now: now
+        ))
     }
 
     @Test("skips during rate-limit cooldown even if file is stale")
     func cooldown() {
         let mtime = now.addingTimeInterval(-900)
         let active = FetchStatus(state: .rateLimited, retryAfterAt: now.addingTimeInterval(60), updatedAt: now)
-        #expect(!PollPolicy.shouldFetch(force: false, fileModificationDate: mtime, fetchStatus: active, now: now))
-        #expect(PollPolicy.shouldFetch(force: true, fileModificationDate: mtime, fetchStatus: active, now: now))
+        #expect(!PollPolicy.shouldFetch(
+            force: false, fileModificationDate: mtime, fetchStatus: active, origin: "poll", now: now
+        ))
+        #expect(PollPolicy.shouldFetch(
+            force: true, fileModificationDate: mtime, fetchStatus: active, origin: "poll", now: now
+        ))
         let expired = FetchStatus(state: .rateLimited, retryAfterAt: now.addingTimeInterval(-1), updatedAt: now)
-        #expect(PollPolicy.shouldFetch(force: false, fileModificationDate: mtime, fetchStatus: expired, now: now))
+        #expect(PollPolicy.shouldFetch(
+            force: false, fileModificationDate: mtime, fetchStatus: expired, origin: "poll", now: now
+        ))
     }
 
     @Test("expired rate-limit cooldown fetches even when file mtime is fresh")
@@ -64,13 +108,17 @@ struct PollPolicyTests {
             retryAfterAt: now.addingTimeInterval(-1),
             updatedAt: now.addingTimeInterval(-100)
         )
-        #expect(PollPolicy.shouldFetch(force: false, fileModificationDate: freshMtime, fetchStatus: expired, now: now))
+        #expect(PollPolicy.shouldFetch(
+            force: false, fileModificationDate: freshMtime, fetchStatus: expired, origin: "poll", now: now
+        ))
         let active = FetchStatus(
             state: .rateLimited,
             retryAfterAt: now.addingTimeInterval(60),
             updatedAt: now.addingTimeInterval(-10)
         )
-        #expect(!PollPolicy.shouldFetch(force: false, fileModificationDate: freshMtime, fetchStatus: active, now: now))
+        #expect(!PollPolicy.shouldFetch(
+            force: false, fileModificationDate: freshMtime, fetchStatus: active, origin: "poll", now: now
+        ))
     }
 
     @Test("200 maps fixture and sets fetchStatus ok")
@@ -131,15 +179,19 @@ struct PollPolicyTests {
         #expect(record?.windows.isEmpty == true)
     }
 
-    @Test("statusline prepare clears prior rateLimited")
+    @Test("statusline prepare clears prior rateLimited without advancing poll age")
     func statuslineClears() {
+        let pollAttempt = now.addingTimeInterval(-400)
         let window = UsageWindow(id: "five_hour", label: "Session", usedPercent: 1, resetsAt: now.addingTimeInterval(60))
         let mapped = UsageRecord(accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "statusline", windows: [window])
         let existing = UsageRecord(
             accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "poll",
-            windows: [window], fetchStatus: FetchStatus(state: .rateLimited, updatedAt: now)
+            windows: [window],
+            fetchStatus: FetchStatus(state: .rateLimited, updatedAt: pollAttempt)
         )
-        #expect(PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing)?.fetchStatus?.state == .ok)
+        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing)
+        #expect(prepared?.fetchStatus?.state == .ok)
+        #expect(prepared?.fetchStatus?.updatedAt == pollAttempt)
     }
 
     @Test("empty statusline mapping soft-skips prepare")

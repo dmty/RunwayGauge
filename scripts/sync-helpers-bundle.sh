@@ -23,6 +23,8 @@ for f in "${RUNTIME[@]}"; do cp "$ROOT/scripts/$f" "$DEST/$f"; done
     .build/arm64-apple-macosx/release/RunwayGaugeHelper \
     .build/x86_64-apple-macosx/release/RunwayGaugeHelper \
     -output "$DEST/runwaygauge-helper"
+  # Ad-hoc sign so Gatekeeper accepts the universal binary after lipo.
+  codesign -s - --force --timestamp=none "$DEST/runwaygauge-helper"
 )
 
 find "$DEST" -type f \( -name '*.sh' -o -name 'runwaygauge-helper' \) -exec chmod 755 {} +

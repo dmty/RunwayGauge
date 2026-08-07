@@ -13,6 +13,7 @@ public enum PollPolicy {
         force: Bool,
         fileModificationDate: Date?,
         fetchStatus: FetchStatus?,
+        origin: String? = nil,
         now: Date = Date()
     ) -> Bool {
         if force { return true }
@@ -23,7 +24,15 @@ public enum PollPolicy {
             return now >= until
         }
 
-        if let mtime = fileModificationDate, now.timeIntervalSince(mtime) < maxAge {
+        // Prefer last OAuth/poll attempt time. Statusline mtime must not suppress polls.
+        if let status = fetchStatus {
+            return now.timeIntervalSince(status.updatedAt) >= maxAge
+        }
+
+        // Legacy records without fetchStatus: only trust file age when last write was a poll.
+        if origin == "poll",
+           let mtime = fileModificationDate,
+           now.timeIntervalSince(mtime) < maxAge {
             return false
         }
         return true
@@ -102,8 +111,17 @@ public enum PollPolicy {
                 now: now
             ),
             plan: mapped.plan ?? existing?.plan,
-            fetchStatus: existing?.fetchStatus.map { _ in
-                FetchStatus(state: .ok, updatedAt: mapped.updatedAt)
+            // Clear error state for the widget, but never advance poll-attempt age —
+            // statusline writes must not reset the OAuth poll clock.
+            fetchStatus: existing?.fetchStatus.map { prior in
+                guard prior.state != .ok else { return prior }
+                return FetchStatus(
+                    state: .ok,
+                    message: nil,
+                    retryAfterAt: nil,
+                    httpStatus: prior.httpStatus,
+                    updatedAt: prior.updatedAt
+                )
             }
         )
     }
