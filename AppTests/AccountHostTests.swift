@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import UsageCore
+import CodexAppServer
 @testable import RunwayGauge
 
 private enum DiscoveryFailure: Error {
@@ -45,9 +46,11 @@ struct AccountHostTests {
             ))
         }
 
-        let result = try await AppModel.bootstrapRegistry(home: home) {
-            throw DiscoveryFailure.unavailable
-        }
+        let result = try await AppModel.bootstrapRegistry(
+            home: home,
+            discoverKeychain: { throw DiscoveryFailure.unavailable },
+            discoverCodex: { .notInstalled }
+        )
 
         #expect(result.registry == stored)
         #expect(result.discoveryWarning != nil)
@@ -58,13 +61,100 @@ struct AccountHostTests {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
 
-        let result = try await AppModel.bootstrapRegistry(home: home) {
-            throw DiscoveryFailure.unavailable
-        }
+        let result = try await AppModel.bootstrapRegistry(
+            home: home,
+            discoverKeychain: { throw DiscoveryFailure.unavailable },
+            discoverCodex: { .notInstalled }
+        )
 
         #expect(result.registry.accounts.isEmpty)
         #expect(FileManager.default.fileExists(atPath: AccountStore.url(home: home).path))
         #expect(result.discoveryWarning != nil)
+    }
+
+    @Test("ready Codex discovery persists one unpinned default account")
+    func bootstrapPersistsCodex() async throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let result = try await AppModel.bootstrapRegistry(
+            home: home,
+            discoverKeychain: { [] },
+            discoverCodex: { .ready(executablePath: "/opt/homebrew/bin/codex") }
+        )
+
+        let codex = try #require(result.registry.accounts.first {
+            $0.id == CodexAccount.id
+        })
+        #expect(!codex.pinned)
+        #expect(codex.credentials.keychain == nil)
+        #expect(codex.credentials.nonSecretFields[
+            CodexAccount.executablePathKey
+        ] == "/opt/homebrew/bin/codex")
+        #expect(result.codexStatus == .ready(
+            executablePath: "/opt/homebrew/bin/codex"
+        ))
+        #expect(try AccountStore.load(from: AccountStore.url(home: home))
+            .accounts.contains { $0.id == CodexAccount.id })
+    }
+
+    @Test("failed rediscovery preserves an existing pinned Codex row")
+    func bootstrapPreservesCodexOnFailure() async throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        _ = try AccountStore.mutate(at: AccountStore.url(home: home)) {
+            $0.accounts.append(Account(
+                id: CodexAccount.id,
+                label: CodexAccount.label,
+                sourceKind: .codex,
+                pinned: true,
+                credentials: AccountCredentials(nonSecretFields: [
+                    CodexAccount.executablePathKey: "/old/codex",
+                ])
+            ))
+            $0.prefs.selectedAccountId = CodexAccount.id
+        }
+
+        let result = try await AppModel.bootstrapRegistry(
+            home: home,
+            discoverKeychain: { [] },
+            discoverCodex: { .notInstalled }
+        )
+
+        #expect(result.registry.accounts.first { $0.id == CodexAccount.id }?.pinned == true)
+        #expect(result.registry.prefs.selectedAccountId == CodexAccount.id)
+        #expect(result.codexStatus == .notInstalled)
+    }
+
+    @Test("Codex is managed but not coming soon")
+    func codexSettingsPolicy() {
+        let account = Account(
+            id: CodexAccount.id,
+            label: CodexAccount.label,
+            sourceKind: .codex,
+            pinned: false,
+            credentials: AccountCredentials(nonSecretFields: [
+                CodexAccount.executablePathKey: "/opt/homebrew/bin/codex",
+            ])
+        )
+        #expect(AccountSettingsPolicy.capabilities(for: account) == .init(
+            canEdit: false,
+            canDelete: false,
+            canTestAccess: false
+        ))
+        #expect(!AccountSettingsPolicy.requiresPinConfirmation(account))
+    }
+
+    @Test("API placeholders still require confirmation")
+    func placeholderSettingsPolicy() {
+        let account = Account(
+            id: "acc_openai",
+            label: "OpenAI",
+            sourceKind: .openAIAPI,
+            pinned: false,
+            credentials: AccountCredentials()
+        )
+        #expect(AccountSettingsPolicy.requiresPinConfirmation(account))
     }
 
     @Test("discovery merges Keychain credentials into matching normalized config")

@@ -8,6 +8,14 @@ options:
     icon:
       file: true
 schemes:
+  RunwayGauge:
+    build:
+      targets:
+        RunwayGauge: all
+  UsageWidget:
+    build:
+      targets:
+        UsageWidget: all
   UsageWidgetTests:
     build:
       targets:
@@ -16,6 +24,14 @@ schemes:
     test:
       targets:
         - UsageWidgetTests
+  RunwayGaugeTests:
+    build:
+      targets:
+        RunwayGauge: all
+        RunwayGaugeTests: [test]
+    test:
+      targets:
+        - RunwayGaugeTests
 settings:
   base:
     SWIFT_VERSION: '6.0'
@@ -50,6 +66,8 @@ targets:
     dependencies:
       - package: UsageCore
         product: UsageCore
+      - package: UsageCore
+        product: CodexAppServer
       - target: UsageWidget
         embed: true
         codeSign: true

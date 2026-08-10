@@ -1,10 +1,12 @@
 import SwiftUI
 import UsageCore
+import CodexAppServer
 import WidgetKit
 
 struct AppBootstrapResult: Sendable {
     var registry: AccountRegistry
     var discoveryWarning: String?
+    var codexStatus: CodexDiscoveryStatus
 }
 
 enum RegistryCommitOrdering {
@@ -28,6 +30,7 @@ final class AppModel: ObservableObject {
     @Published var setupOutput: String?
     @Published var isSettingUpHelpers = false
     @Published var isRefreshingUsage = false
+    @Published private(set) var codexStatus: CodexDiscoveryStatus = .notInstalled
 
     init() {
         Task { await bootstrap() }
@@ -53,6 +56,7 @@ final class AppModel: ObservableObject {
             let result = try await Self.bootstrapRegistry(home: home)
             registry = result.registry
             actionError = result.discoveryWarning
+            codexStatus = result.codexStatus
             bootstrapError = nil
         } catch {
             bootstrapError = error.localizedDescription
@@ -63,8 +67,13 @@ final class AppModel: ObservableObject {
         home: URL,
         discoverKeychain: @escaping @Sendable () async throws -> [KeychainItemDescriptor] = {
             try await KeychainDiscovery.discover()
+        },
+        discoverCodex: @escaping @Sendable () async -> CodexDiscoveryStatus = {
+            await CodexDiscovery().discover()
         }
     ) async throws -> AppBootstrapResult {
+        async let codexTask = discoverCodex()
+
         let descriptors: [KeychainItemDescriptor]
         let discoveryWarning: String?
         do {
@@ -82,13 +91,71 @@ final class AppModel: ObservableObject {
         var registry = try await Task.detached(priority: .userInitiated) {
             try AccountStore.bootstrapIfMissing(home: home, discovered: discovered)
         }.value
+
+        let codexStatus = await codexTask
+        if case .ready(let executablePath) = codexStatus {
+            var trial = registry
+            if CodexAccount.merge(executablePath: executablePath, into: &trial) {
+                registry = try await Task.detached(priority: .userInitiated) {
+                    try AccountStore.mutate(at: AccountStore.url(home: home)) {
+                        _ = CodexAccount.merge(executablePath: executablePath, into: &$0)
+                    }
+                }.value
+            }
+        }
         // Validate only the in-memory copy so malformed-but-decodable registries
         // produce a durable bootstrap error without changing their bytes.
         try AccountValidation.validateAndRepair(&registry, home: home)
         return AppBootstrapResult(
             registry: registry,
-            discoveryWarning: discoveryWarning
+            discoveryWarning: discoveryWarning,
+            codexStatus: codexStatus
         )
+    }
+
+    func refreshDiscovery() async {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        async let keychainTask = KeychainDiscovery.discover()
+        async let codexTask = CodexDiscovery().discover()
+        let discoveredCodex = await codexTask
+        let keychainResult: Result<[KeychainItemDescriptor], Error>
+        do {
+            keychainResult = .success(try await keychainTask)
+        } catch {
+            keychainResult = .failure(error)
+        }
+
+        let discoveredClaude: [DiscoveredAccount]
+        switch keychainResult {
+        case .success(let descriptors):
+            discoveredClaude = ClaudeOAuthSource().discover(
+                home: home,
+                keychainItems: descriptors
+            )
+        case .failure:
+            discoveredClaude = []
+        }
+
+        let warning: String? = switch keychainResult {
+        case .success: nil
+        case .failure(let error):
+            "Keychain discovery unavailable: \(error.localizedDescription)"
+        }
+        _ = await mutate { registry in
+            DiscoveredAccountMerge.merge(
+                discoveredClaude,
+                into: &registry,
+                home: home
+            )
+            if case .ready(let executablePath) = discoveredCodex {
+                _ = CodexAccount.merge(
+                    executablePath: executablePath,
+                    into: &registry
+                )
+            }
+        }
+        codexStatus = discoveredCodex
+        actionError = warning
     }
 
     func mutate(

@@ -243,10 +243,13 @@ struct SettingsView: View {
                 if isDiscovering {
                     ProgressView()
                 } else {
-                    Label("Refresh Claude accounts", systemImage: "arrow.clockwise")
+                    Label("Discover accounts", systemImage: "arrow.clockwise")
                 }
             }
             .disabled(isDiscovering || !model.canMutateRegistry)
+            Text(model.codexStatus.settingsText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Text("Discovery reads Keychain attributes only and does not request credential data.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -396,23 +399,7 @@ struct SettingsView: View {
     private func refreshDiscovery() async {
         isDiscovering = true
         defer { isDiscovering = false }
-        do {
-            let descriptors = try await KeychainDiscovery.discover()
-            let discovered = ClaudeOAuthSource().discover(
-                home: FileManager.default.homeDirectoryForCurrentUser,
-                keychainItems: descriptors
-            )
-            await mergeDiscovered(discovered)
-        } catch {
-            model.actionError = error.localizedDescription
-        }
-    }
-
-    private func mergeDiscovered(_ discovered: [DiscoveredAccount]) async {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        _ = await model.mutate { registry in
-            DiscoveredAccountMerge.merge(discovered, into: &registry, home: home)
-        }
+        await model.refreshDiscovery()
     }
 
     private func addClaude() async {
@@ -459,7 +446,7 @@ struct SettingsView: View {
     }
 
     private func requestPin(_ account: Account, _ pinned: Bool) {
-        if pinned, account.sourceKind != .claudeOAuth {
+        if pinned, AccountSettingsPolicy.requiresPinConfirmation(account) {
             pendingStubPin = account
         } else {
             Task { await setPinned(account, pinned) }
@@ -468,8 +455,20 @@ struct SettingsView: View {
 
     private func setPinned(_ account: Account, _ pinned: Bool) async {
         pendingStubPin = nil
-        _ = await model.mutate {
-            try AccountSelection.setPinned(id: account.id, pinned: pinned, now: Date(), in: &$0)
+        let changed = await model.mutate {
+            try AccountSelection.setPinned(
+                id: account.id,
+                pinned: pinned,
+                now: Date(),
+                in: &$0
+            )
+        }
+        if changed,
+           pinned,
+           account.sourceKind == .codex,
+           HelperSetup.isInstalled(),
+           HelperSetup.diagnostics().helperBinaryAvailable {
+            await model.refreshUsageNow()
         }
     }
 
@@ -523,6 +522,9 @@ struct SettingsView: View {
     }
 
     private func sourceHealth(_ account: Account) -> String {
+        if account.sourceKind == .codex {
+            return model.codexStatus.settingsText
+        }
         guard let source = SourceCatalog.adapter(for: account.sourceKind) else { return "Unsupported source" }
         switch source.validate(account, fileSystem: LocalSourceFileSystem()) {
         case .ready: return "Ready"
@@ -559,6 +561,7 @@ private struct AccountRow: View {
     let onTestAccess: () -> Void
 
     var body: some View {
+        let capabilities = AccountSettingsPolicy.capabilities(for: account)
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading) {
@@ -567,13 +570,13 @@ private struct AccountRow: View {
                 }
                 Spacer()
                 Toggle(
-                    "Pinned",
+                    "Show in widget",
                     isOn: Binding(
                         get: { account.pinned },
-                        set: { value in onSetPinned(value) }
+                        set: onSetPinned
                     )
                 )
-                    .toggleStyle(.checkbox)
+                .toggleStyle(.checkbox)
                 Button(isSelected ? "Selected" : "Select", action: onSelect)
                     .disabled(isSelected || !account.pinned)
             }
@@ -583,12 +586,16 @@ private struct AccountRow: View {
             LabeledContent("Source health", value: sourceHealth)
             LabeledContent("Usage health", value: usageHealth)
             HStack {
-                Button("Rename / edit", action: onEdit)
-                if account.credentials.keychain != nil {
+                if capabilities.canEdit {
+                    Button("Rename / edit", action: onEdit)
+                }
+                if capabilities.canTestAccess {
                     Button("Test access", action: onTestAccess)
                 }
                 Spacer()
-                Button("Delete…", role: .destructive, action: onDelete)
+                if capabilities.canDelete {
+                    Button("Delete…", role: .destructive, action: onDelete)
+                }
             }
         }
         .padding(.vertical, 4)
@@ -599,11 +606,16 @@ private struct AccountRow: View {
         case .claudeOAuth: "Claude OAuth"
         case .openAIAPI: "OpenAI API"
         case .anthropicAPI: "Anthropic API"
+        case .codex: "Codex"
         default: account.sourceKind.rawValue
         }
     }
 
     private var connectionSummary: String {
+        if account.sourceKind == .codex {
+            return account.credentials.nonSecretFields[CodexAccount.executablePathKey]
+                ?? "Codex executable unavailable"
+        }
         let config = account.credentials.configDir ?? "no config directory"
         let keychain = account.credentials.keychain.map {
             "\($0.service) / \($0.account ?? "any account")"
