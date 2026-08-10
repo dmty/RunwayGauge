@@ -21,6 +21,56 @@ enum RegistryCommitOrdering {
     }
 }
 
+enum DiscoveryRefresh {
+    static func warning(
+        for keychainResult: Result<[KeychainItemDescriptor], Error>
+    ) -> String? {
+        switch keychainResult {
+        case .success: nil
+        case .failure(let error):
+            "Keychain discovery unavailable: \(error.localizedDescription)"
+        }
+    }
+
+    /// Claude merge only on Keychain success; Codex merge always when ready.
+    static func apply(
+        keychainResult: Result<[KeychainItemDescriptor], Error>,
+        discoveredCodex: CodexDiscoveryStatus,
+        into registry: inout AccountRegistry,
+        home: URL
+    ) {
+        if case .success(let descriptors) = keychainResult {
+            let discoveredClaude = ClaudeOAuthSource().discover(
+                home: home,
+                keychainItems: descriptors
+            )
+            DiscoveredAccountMerge.merge(
+                discoveredClaude,
+                into: &registry,
+                home: home
+            )
+        }
+        if case .ready(let executablePath) = discoveredCodex {
+            _ = CodexAccount.merge(
+                executablePath: executablePath,
+                into: &registry
+            )
+        }
+    }
+
+    static func nextActionError(
+        mutated: Bool,
+        currentActionError: String?,
+        warning: String?
+    ) -> String? {
+        if mutated { return warning }
+        if let currentActionError, let warning {
+            return "\(currentActionError); \(warning)"
+        }
+        return currentActionError ?? warning
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published private(set) var registry: AccountRegistry?
@@ -125,37 +175,21 @@ final class AppModel: ObservableObject {
             keychainResult = .failure(error)
         }
 
-        let discoveredClaude: [DiscoveredAccount]
-        switch keychainResult {
-        case .success(let descriptors):
-            discoveredClaude = ClaudeOAuthSource().discover(
-                home: home,
-                keychainItems: descriptors
-            )
-        case .failure:
-            discoveredClaude = []
-        }
-
-        let warning: String? = switch keychainResult {
-        case .success: nil
-        case .failure(let error):
-            "Keychain discovery unavailable: \(error.localizedDescription)"
-        }
-        _ = await mutate { registry in
-            DiscoveredAccountMerge.merge(
-                discoveredClaude,
+        let warning = DiscoveryRefresh.warning(for: keychainResult)
+        let mutated = await mutate { registry in
+            DiscoveryRefresh.apply(
+                keychainResult: keychainResult,
+                discoveredCodex: discoveredCodex,
                 into: &registry,
                 home: home
             )
-            if case .ready(let executablePath) = discoveredCodex {
-                _ = CodexAccount.merge(
-                    executablePath: executablePath,
-                    into: &registry
-                )
-            }
         }
         codexStatus = discoveredCodex
-        actionError = warning
+        actionError = DiscoveryRefresh.nextActionError(
+            mutated: mutated,
+            currentActionError: actionError,
+            warning: warning
+        )
     }
 
     func mutate(

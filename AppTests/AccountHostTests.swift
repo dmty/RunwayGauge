@@ -157,6 +157,68 @@ struct AccountHostTests {
         #expect(AccountSettingsPolicy.requiresPinConfirmation(account))
     }
 
+    @Test("Keychain refresh failure keeps Keychain-only Claude accounts")
+    func refreshSkipsClaudeMergeOnKeychainFailure() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        var value = AccountRegistry(
+            revision: 4,
+            prefs: AccountPreferences(selectedAccountId: "acc_kc"),
+            accounts: [
+                Account(
+                    id: "acc_kc",
+                    label: "Keychain only",
+                    sourceKind: .claudeOAuth,
+                    pinned: true,
+                    credentials: AccountCredentials(
+                        keychain: KeychainReference(
+                            service: "Claude Code-credentials",
+                            account: "dmitry"
+                        )
+                    )
+                ),
+            ]
+        )
+
+        DiscoveryRefresh.apply(
+            keychainResult: .failure(DiscoveryFailure.unavailable),
+            discoveredCodex: .ready(executablePath: "/opt/homebrew/bin/codex"),
+            into: &value,
+            home: home
+        )
+
+        #expect(value.accounts.contains { $0.id == "acc_kc" })
+        #expect(value.accounts.contains { $0.id == CodexAccount.id })
+        #expect(DiscoveryRefresh.warning(
+            for: .failure(DiscoveryFailure.unavailable)
+        ) != nil)
+    }
+
+    @Test("successful discovery warning does not clear mutation errors")
+    func refreshPreservesMutationErrorOverNilWarning() {
+        #expect(
+            DiscoveryRefresh.nextActionError(
+                mutated: false,
+                currentActionError: "registry write failed",
+                warning: nil
+            ) == "registry write failed"
+        )
+        #expect(
+            DiscoveryRefresh.nextActionError(
+                mutated: false,
+                currentActionError: "registry write failed",
+                warning: "Keychain discovery unavailable: boom"
+            ) == "registry write failed; Keychain discovery unavailable: boom"
+        )
+        #expect(
+            DiscoveryRefresh.nextActionError(
+                mutated: true,
+                currentActionError: nil,
+                warning: "Keychain discovery unavailable: boom"
+            ) == "Keychain discovery unavailable: boom"
+        )
+    }
+
     @Test("discovery merges Keychain credentials into matching normalized config")
     func discoveryMergesMatchingClaudeConfig() throws {
         let home = try temporaryHome()
