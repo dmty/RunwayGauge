@@ -10,6 +10,11 @@ public struct ClaudeOAuthSource: UsageSource {
         SourceFieldDescriptor(key: "keychainService", label: "Keychain service", required: false),
         SourceFieldDescriptor(key: "keychainAccount", label: "Keychain account", required: false),
     ]
+    public let presentation = UsageSourcePresentation(
+        compactHeader: "CLAUDE CODE",
+        emptyMessage: "No usage data yet — start a Claude Code session.",
+        supportsSessionNotStarted: true
+    )
 
     private let home: URL?
 

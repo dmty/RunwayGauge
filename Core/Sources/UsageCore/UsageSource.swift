@@ -77,6 +77,7 @@ public protocol UsageSource: Sendable {
     var kind: SourceKind { get }
     var displayName: String { get }
     var settingsFields: [SourceFieldDescriptor] { get }
+    var presentation: UsageSourcePresentation { get }
 
     func discover(
         home: URL,
@@ -86,15 +87,50 @@ public protocol UsageSource: Sendable {
     func paneModel(account: Account, record: UsageRecord?) -> UsagePaneModel
 }
 
+public struct UsageSourcePresentation: Equatable, Sendable {
+    public let compactHeader: String
+    public let emptyMessage: String
+    public let supportsSessionNotStarted: Bool
+
+    public init(
+        compactHeader: String,
+        emptyMessage: String,
+        supportsSessionNotStarted: Bool
+    ) {
+        self.compactHeader = compactHeader
+        self.emptyMessage = emptyMessage
+        self.supportsSessionNotStarted = supportsSessionNotStarted
+    }
+}
+
+public extension UsageSource {
+    var presentation: UsageSourcePresentation {
+        UsageSourcePresentation(
+            compactHeader: displayName.uppercased(),
+            emptyMessage: "No usage data yet.",
+            supportsSessionNotStarted: false
+        )
+    }
+}
+
 public enum SourceCatalog {
     private static let adapters: [any UsageSource] = [
         ClaudeOAuthSource(),
+        CodexSource(),
         ComingSoonAPISource.openAI,
         ComingSoonAPISource.anthropic,
     ]
 
     public static func adapter(for kind: SourceKind) -> (any UsageSource)? {
         adapters.first { $0.kind == kind }
+    }
+
+    public static func presentation(for kind: SourceKind) -> UsageSourcePresentation {
+        adapter(for: kind)?.presentation ?? UsageSourcePresentation(
+            compactHeader: kind.rawValue.uppercased(),
+            emptyMessage: "No usage data yet.",
+            supportsSessionNotStarted: false
+        )
     }
 
     public static func paneModel(

@@ -280,4 +280,43 @@ struct SourceAdapterTests {
         ) == .comingSoon)
         #expect(SourceCatalog.adapter(for: .openAIAPI)?.settingsFields.isEmpty == false)
     }
+
+    @Test("catalog exposes a ready Codex source")
+    func codexSourceIsReadyWithExecutable() {
+        let account = Account(
+            id: CodexAccount.id,
+            label: CodexAccount.label,
+            sourceKind: .codex,
+            pinned: false,
+            credentials: AccountCredentials(nonSecretFields: [
+                CodexAccount.executablePathKey: "/opt/homebrew/bin/codex",
+            ])
+        )
+        let source = SourceCatalog.adapter(for: .codex)
+
+        #expect(source?.displayName == "Codex")
+        #expect(source?.validate(
+            account,
+            fileSystem: TestFileSystem(existingPaths: ["/opt/homebrew/bin/codex"])
+        ) == .ready)
+        #expect(SourceCatalog.paneModel(for: account, record: nil) == .usage(
+            sourceKind: .codex,
+            label: "Codex",
+            record: nil
+        ))
+    }
+
+    @Test("presentation keeps Claude-only not-started behavior")
+    func providerPresentation() {
+        #expect(SourceCatalog.presentation(for: .claudeOAuth) == UsageSourcePresentation(
+            compactHeader: "CLAUDE CODE",
+            emptyMessage: "No usage data yet — start a Claude Code session.",
+            supportsSessionNotStarted: true
+        ))
+        #expect(SourceCatalog.presentation(for: .codex) == UsageSourcePresentation(
+            compactHeader: "CODEX",
+            emptyMessage: "No Codex usage data yet.",
+            supportsSessionNotStarted: false
+        ))
+    }
 }

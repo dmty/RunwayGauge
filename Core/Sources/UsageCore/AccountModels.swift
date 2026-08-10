@@ -18,6 +18,7 @@ public struct SourceKind: RawRepresentable, Codable, Hashable, Sendable {
     }
 
     public static let claudeOAuth = SourceKind(rawValue: "claude-oauth")
+    public static let codex = SourceKind(rawValue: "codex")
     public static let openAIAPI = SourceKind(rawValue: "openai-api")
     public static let anthropicAPI = SourceKind(rawValue: "anthropic-api")
 }
