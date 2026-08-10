@@ -4,13 +4,13 @@ public struct CodexSource: UsageSource {
     public let kind = SourceKind.codex
     public let displayName = "Codex"
     public let settingsFields: [SourceFieldDescriptor] = []
-    public let presentation = UsageSourcePresentation(
-        compactHeader: "CODEX",
-        emptyMessage: "No Codex usage data yet.",
-        supportsSessionNotStarted: false
-    )
-
-    public init() {}
+    public var presentation: UsageSourcePresentation {
+        UsageSourcePresentation(
+            compactHeader: displayName.uppercased(),
+            emptyMessage: "No Codex usage data yet.",
+            supportsSessionNotStarted: false
+        )
+    }
 
     public func discover(
         home: URL,

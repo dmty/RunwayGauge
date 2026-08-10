@@ -22,11 +22,15 @@ public enum CodexAccount {
                     || current.credentials.nonSecretFields[executablePathKey] != normalized
             else { return false }
 
-            registry.accounts[index].label = label
-            registry.accounts[index].sourceKind = .codex
-            registry.accounts[index].credentials.configDir = nil
-            registry.accounts[index].credentials.keychain = nil
-            registry.accounts[index].credentials.nonSecretFields[executablePathKey] = normalized
+            registry.accounts[index] = Account(
+                id: current.id,
+                label: label,
+                sourceKind: .codex,
+                pinned: current.pinned,
+                credentials: AccountCredentials(nonSecretFields: [
+                    executablePathKey: normalized,
+                ])
+            )
             return true
         }
 
