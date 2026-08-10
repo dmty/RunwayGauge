@@ -1,8 +1,9 @@
 import SwiftUI
 import UsageCore
 
-struct ClaudeUsageView: View {
+struct UsageGaugeView: View {
     let record: UsageRecord
+    let sourceKind: SourceKind
     let freshness: Freshness
     let now: Date
     let compact: Bool
@@ -10,11 +11,19 @@ struct ClaudeUsageView: View {
 
     private let formatter = UsageFormatter(timeZone: .current)
     private var contentPadding: CGFloat { compact ? 14 : 16 }
+    private var presentation: UsageSourcePresentation {
+        SourceCatalog.presentation(for: sourceKind)
+    }
 
     var body: some View {
         let windows = options.visibleWindows(from: record)
         if windows.isEmpty {
-            message("No usage data yet — start a Claude Code session.")
+            VStack(alignment: .leading, spacing: 6) {
+                message(presentation.emptyMessage)
+                if let fetchLine = fetchStatusLine {
+                    message(fetchLine)
+                }
+            }
         } else {
             rows(windows: windows, freshness: freshness)
         }
@@ -28,7 +37,10 @@ struct ClaudeUsageView: View {
             .padding(contentPadding)
     }
 
-    private func rows(windows: [UsageWindow], freshness: Freshness) -> some View {
+    private func rows(
+        windows: [UsageWindow],
+        freshness: Freshness
+    ) -> some View {
         let stale = freshness != .fresh
         let ageSuffix = switch freshness {
         case .fresh: ""
@@ -37,11 +49,10 @@ struct ClaudeUsageView: View {
 
         return VStack(alignment: .leading, spacing: compact ? 10 : 16) {
             if compact {
-                Text("CLAUDE CODE")
+                Text(presentation.compactHeader)
                     .font(.system(size: 9, weight: .bold))
                     .kerning(0.6)
                     .foregroundStyle(.tertiary)
-                    // Leave room for cycle + settings controls in the top-trailing corner.
                     .padding(.trailing, 44)
             }
             if options.showPlanLabel, let plan = record.plan, !plan.isEmpty {
@@ -51,15 +62,19 @@ struct ClaudeUsageView: View {
                     .padding(.trailing, compact ? 44 : 0)
             }
             ForEach(windows, id: \.id) { window in
-                let notStarted = options.showSessionNotStarted
-                    && window.id == "five_hour"
-                    && window.usedPercent <= 0
+                let notStarted = UsageGaugePolicy.showsSessionNotStarted(
+                    sourceKind: sourceKind,
+                    window: window,
+                    options: options
+                )
                 UsageBar(
                     label: label(for: window),
                     window: window,
                     level: options.level(for: window),
                     trailingText: notStarted ? "Not started" : nil,
-                    resetLine: notStarted ? "Not started" : resetLine(for: window, ageSuffix: ageSuffix),
+                    resetLine: notStarted
+                        ? "Not started"
+                        : resetLine(for: window, ageSuffix: ageSuffix),
                     dimmed: stale,
                     compact: compact
                 )
@@ -84,19 +99,25 @@ struct ClaudeUsageView: View {
         }
     }
 
-    private func resetLine(for window: UsageWindow, ageSuffix: String) -> String {
+    private func resetLine(
+        for window: UsageWindow,
+        ageSuffix: String
+    ) -> String {
         let reset = formatter.resetDescription(
             window.resetsAt,
             now: now,
             style: compact ? .short : .long
         )
-        return compact ? "resets \(reset)\(ageSuffix)" : "Resets \(reset)\(ageSuffix)"
+        return compact
+            ? "resets \(reset)\(ageSuffix)"
+            : "Resets \(reset)\(ageSuffix)"
     }
 
     private var fetchStatusLine: String? {
-        guard options.showFetchStatus, let status = record.fetchStatus, status.state != .ok else {
-            return nil
-        }
+        guard options.showFetchStatus,
+              let status = record.fetchStatus,
+              status.state != .ok
+        else { return nil }
         if let message = status.message, !message.isEmpty { return message }
         return status.state == .rateLimited ? "Rate limited" : "Fetch failed"
     }

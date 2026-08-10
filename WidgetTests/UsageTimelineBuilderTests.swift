@@ -3,6 +3,91 @@ import Testing
 import UsageCore
 
 struct UsageTimelineBuilderTests {
+    @Test("session not-started inference is Claude-only")
+    func sessionNotStartedPolicy() {
+        var options = UsageDisplayOptions.default
+        options.showSessionNotStarted = true
+        let zero = UsageWindow(
+            id: "five_hour",
+            label: "Current session",
+            usedPercent: 0,
+            resetsAt: Date(timeIntervalSince1970: 2_000)
+        )
+
+        #expect(UsageGaugePolicy.showsSessionNotStarted(
+            sourceKind: .claudeOAuth,
+            window: zero,
+            options: options
+        ))
+        #expect(!UsageGaugePolicy.showsSessionNotStarted(
+            sourceKind: .codex,
+            window: zero,
+            options: options
+        ))
+    }
+
+    @Test("mixed Claude and Codex accounts rotate as usage panes")
+    func mixedProviderRotation() throws {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let mixed = AccountRegistry(
+            revision: 9,
+            prefs: AccountPreferences(
+                selectedAccountId: "acc_claude",
+                rotateEnabled: true,
+                rotateIntervalSec: 400,
+                rotationAnchorAt: 700
+            ),
+            accounts: [
+                Account(
+                    id: "acc_claude",
+                    label: "Claude",
+                    sourceKind: .claudeOAuth,
+                    pinned: true,
+                    credentials: AccountCredentials()
+                ),
+                Account(
+                    id: CodexAccount.id,
+                    label: "Codex",
+                    sourceKind: .codex,
+                    pinned: true,
+                    credentials: AccountCredentials(nonSecretFields: [
+                        CodexAccount.executablePathKey: "/opt/homebrew/bin/codex",
+                    ])
+                ),
+            ]
+        )
+        let builder = makeBuilder(
+            now: now,
+            registry: { mixed },
+            usage: { accountID in
+                .record(UsageRecord(
+                    accountId: accountID,
+                    source: accountID == CodexAccount.id ? "codex" : "claude-code",
+                    updatedAt: now,
+                    origin: "test",
+                    windows: [UsageWindow(
+                        id: "five_hour",
+                        label: "Current session",
+                        usedPercent: 25,
+                        resetsAt: now.addingTimeInterval(600)
+                    )]
+                ))
+            }
+        )
+
+        let plan = try builder.makePlan()
+
+        #expect(plan.entries.map(\.accountID) == ["acc_claude", CodexAccount.id])
+        #expect(plan.entries.map(\.sourceKind) == [.claudeOAuth, .codex])
+        guard case .usage(let kind, let label, let record) = plan.entries[1].paneModel else {
+            Issue.record("expected Codex usage pane")
+            return
+        }
+        #expect(kind == .codex)
+        #expect(label == "Codex")
+        #expect(record?.source == "codex")
+    }
+
     @Test("rotation emits current and delayed boundary entries without mutating registry")
     func rotatingTimeline() throws {
         let now = Date(timeIntervalSince1970: 1_000)

@@ -110,6 +110,7 @@ targets:
     sources:
       - WidgetTests
       - path: Widget/UsageTimeline.swift
+      - path: Widget/UsageGaugePolicy.swift
     dependencies:
       - target: UsageWidget
       - package: UsageCore

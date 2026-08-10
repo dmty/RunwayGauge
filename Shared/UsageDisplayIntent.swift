@@ -3,7 +3,7 @@ import UsageCore
 import WidgetKit
 
 struct UsageDisplayIntent: WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Claude Code Usage"
+    static let title: LocalizedStringResource = "RunwayGauge Usage"
     static let description = IntentDescription("Choose which usage meters appear.")
 
     @Parameter(title: "Model-scoped limits", default: false)

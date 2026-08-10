@@ -64,26 +64,27 @@ struct UsageWidgetEntryView: View {
             StubSourceView(label: label, detail: "Unsupported source: \(kind.rawValue)")
         case .comingSoon(_, let label):
             StubSourceView(label: label, detail: "Coming soon")
-        case .usage:
+        case .usage(let sourceKind, _, _):
             switch entry.loadResult {
             case .missing:
-                message("No data yet. Check helper status in RunwayGauge.")
+                message(SourceCatalog.presentation(for: sourceKind).emptyMessage)
             case .unreadable:
                 message("Usage data is unreadable or belongs to another account.")
             case .record:
                 if let record = entry.record, let freshness = entry.freshness {
-                    ClaudeUsageView(
+                    UsageGaugeView(
                         record: record,
+                        sourceKind: sourceKind,
                         freshness: freshness,
                         now: entry.date,
                         compact: family == .systemSmall,
                         options: entry.options
                     )
                 } else {
-                    message("No usage data yet.")
+                    message(SourceCatalog.presentation(for: sourceKind).emptyMessage)
                 }
             case nil:
-                message("No usage data yet.")
+                message(SourceCatalog.presentation(for: sourceKind).emptyMessage)
             }
         }
     }
@@ -100,8 +101,8 @@ struct UsageWidget: Widget {
         AppIntentConfiguration(kind: "UsageWidget", intent: UsageDisplayIntent.self, provider: UsageProvider()) { entry in
             UsageWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Claude Code Usage")
-        .description("Session and weekly usage limits.")
+        .configurationDisplayName("RunwayGauge Usage")
+        .description("Session and weekly usage limits for enabled accounts.")
         .supportedFamilies([.systemSmall, .systemMedium])
         .contentMarginsDisabled()
     }
