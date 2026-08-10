@@ -54,31 +54,25 @@ public struct CodexAppServerClient: CodexAppServerServing, Sendable {
     }
 
     public func readAccount() async throws -> CodexAccountReadResult {
-        try await run(
-            exchange: { child in
-                try await child.exchange(
-                    method: "account/read",
-                    params: AccountReadParams(refreshToken: false),
-                    result: CodexAccountReadResult.self
-                )
-            }
+        try await perform(
+            method: "account/read",
+            params: AccountReadParams(refreshToken: false),
+            result: CodexAccountReadResult.self
         )
     }
 
     public func readRateLimits() async throws -> CodexRateLimitsReadResult {
-        try await run(
-            exchange: { child in
-                try await child.exchange(
-                    method: "account/rateLimits/read",
-                    params: Optional<EmptyParams>.none,
-                    result: CodexRateLimitsReadResult.self
-                )
-            }
+        try await perform(
+            method: "account/rateLimits/read",
+            params: nil as EmptyParams?,
+            result: CodexRateLimitsReadResult.self
         )
     }
 
-    private func run<Result: Sendable>(
-        exchange: @escaping @Sendable (RunningCodexProcess) async throws -> Result
+    private func perform<Params: Encodable & Sendable, Result: Decodable & Sendable>(
+        method: String,
+        params: Params?,
+        result: Result.Type
     ) async throws -> Result {
         let child = try RunningCodexProcess(
             executableURL: executableURL,
@@ -90,8 +84,11 @@ public struct CodexAppServerClient: CodexAppServerServing, Sendable {
             return try await withTaskCancellationHandler(
                 operation: {
                     do {
-                        let value = try await exchange(child)
-                        // Atomic: discard late success if the deadline already won.
+                        let value = try await child.exchange(
+                            method: method,
+                            params: params,
+                            result: result
+                        )
                         guard gate.tryComplete() else {
                             throw CodexAppServerError.timedOut
                         }
@@ -171,13 +168,21 @@ private struct ResponseProbe: Decodable {
 private struct Request<Params: Encodable>: Encodable {
     let id: Int
     let method: String
-    let params: Params
-}
+    let params: Params?
 
-/// Matches official app-server shape: no `params` key.
-private struct ParameterlessRequest: Encodable {
-    let id: Int
-    let method: String
+    private enum CodingKeys: String, CodingKey {
+        case id, method, params
+    }
+
+    // ponytail: omit `params` key when nil (rateLimits/read), never emit null
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(method, forKey: .method)
+        if let params {
+            try container.encode(params, forKey: .params)
+        }
+    }
 }
 
 private struct Notification<Params: Encodable>: Encodable {
@@ -246,11 +251,7 @@ private final class RunningCodexProcess: @unchecked Sendable {
             if id == 0, !initialized {
                 initialized = true
                 try write(Notification(method: "initialized", params: EmptyParams()))
-                if let params {
-                    try write(Request(id: 1, method: method, params: params))
-                } else {
-                    try write(ParameterlessRequest(id: 1, method: method))
-                }
+                try write(Request(id: 1, method: method, params: params))
                 continue
             }
             guard id == 1 else { continue }
