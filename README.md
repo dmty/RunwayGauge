@@ -70,6 +70,20 @@ archived rather than displayed under a guessed account.
 The host app is intentionally unsandboxed so it can manage account settings,
 inspect health, and install helpers. The widget extension remains sandboxed.
 
+### Codex
+
+RunwayGauge discovers one default Codex CLI installation from your shell path,
+`/opt/homebrew/bin`, or `/usr/local/bin`. Sign in with the Codex CLI first, then
+open RunwayGauge Settings and choose **Discover accounts**. Codex appears as a
+managed account and stays off until you enable **Show in widget**.
+
+When enabled, the helper asks the documented local `codex app-server` for the
+five-hour session and seven-day weekly rate limits on the same ten-minute
+cadence as Claude Code. RunwayGauge stores the resolved executable path but
+does not read or store Codex authentication tokens. This version supports only
+the active default Codex profile; custom `CODEX_HOME` profiles, API billing,
+spend estimation, and additional Codex buckets are not included.
+
 ## Tests
 
     (cd Core && swift test)
@@ -81,11 +95,12 @@ inspect health, and install helpers. The widget extension remains sandboxed.
 
 ## Adding another source
 
-Sources are panes inside one widget and share `UsageCore`: add a writer that
-produces the same JSON contract under a new filename, add a pane view, and add
-a switcher (`Button` + `AppIntent`, or rotating timeline entries). Keep the
-widget kind string as `"UsageWidget"`; changing it orphans already-placed
-widgets.
+All collectors normalize into `UsageRecord`. Sources are panes inside one widget
+and share `UsageCore`: add a writer that produces the same JSON contract under a
+new filename, add a pane view, and add a switcher (`Button` + `AppIntent`, or
+rotating timeline entries). Keep provider protocol and auth code outside the
+widget target. Keep the widget kind string as `"UsageWidget"`; changing it
+orphans already-placed widgets.
 
 ## CI and releases
 
