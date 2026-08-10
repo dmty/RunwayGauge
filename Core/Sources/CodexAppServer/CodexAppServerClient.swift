@@ -54,25 +54,31 @@ public struct CodexAppServerClient: CodexAppServerServing, Sendable {
     }
 
     public func readAccount() async throws -> CodexAccountReadResult {
-        try await perform(
-            method: "account/read",
-            params: AccountReadParams(refreshToken: false),
-            result: CodexAccountReadResult.self
+        try await run(
+            exchange: { child in
+                try await child.exchange(
+                    method: "account/read",
+                    params: AccountReadParams(refreshToken: false),
+                    result: CodexAccountReadResult.self
+                )
+            }
         )
     }
 
     public func readRateLimits() async throws -> CodexRateLimitsReadResult {
-        try await perform(
-            method: "account/rateLimits/read",
-            params: Optional<EmptyParams>.none,
-            result: CodexRateLimitsReadResult.self
+        try await run(
+            exchange: { child in
+                try await child.exchange(
+                    method: "account/rateLimits/read",
+                    params: Optional<EmptyParams>.none,
+                    result: CodexRateLimitsReadResult.self
+                )
+            }
         )
     }
 
-    private func perform<Params: Encodable & Sendable, Result: Decodable & Sendable>(
-        method: String,
-        params: Params,
-        result: Result.Type
+    private func run<Result: Sendable>(
+        exchange: @escaping @Sendable (RunningCodexProcess) async throws -> Result
     ) async throws -> Result {
         let child = try RunningCodexProcess(
             executableURL: executableURL,
@@ -84,21 +90,21 @@ public struct CodexAppServerClient: CodexAppServerServing, Sendable {
             return try await withTaskCancellationHandler(
                 operation: {
                     do {
-                        let value = try await child.exchange(
-                            method: method,
-                            params: params,
-                            result: result
-                        )
-                        gate.cancel()
+                        let value = try await exchange(child)
+                        // Atomic: discard late success if the deadline already won.
+                        guard gate.tryComplete() else {
+                            throw CodexAppServerError.timedOut
+                        }
                         return value
                     } catch {
-                        gate.cancel()
-                        if gate.timedOut { throw CodexAppServerError.timedOut }
+                        if !gate.tryComplete() {
+                            throw CodexAppServerError.timedOut
+                        }
                         throw error
                     }
                 },
                 onCancel: {
-                    gate.cancel()
+                    _ = gate.tryComplete()
                     child.stop()
                 }
             )
@@ -110,7 +116,7 @@ public struct CodexAppServerClient: CodexAppServerServing, Sendable {
 }
 
 /// GCD-backed operation deadline; stop callback unblocks FileHandle reads.
-private final class OperationDeadline: @unchecked Sendable {
+final class OperationDeadline: @unchecked Sendable {
     private let lock = NSLock()
     private var finished = false
     private var timedOutFlag = false
@@ -136,10 +142,14 @@ private final class OperationDeadline: @unchecked Sendable {
         }
     }
 
-    func cancel() {
+    /// Claims completion for the exchange path. `false` means the deadline already won.
+    @discardableResult
+    func tryComplete() -> Bool {
         lock.lock()
+        defer { lock.unlock() }
+        if finished { return !timedOutFlag }
         finished = true
-        lock.unlock()
+        return true
     }
 }
 
@@ -164,6 +174,12 @@ private struct Request<Params: Encodable>: Encodable {
     let params: Params
 }
 
+/// Matches official app-server shape: no `params` key.
+private struct ParameterlessRequest: Encodable {
+    let id: Int
+    let method: String
+}
+
 private struct Notification<Params: Encodable>: Encodable {
     let method: String
     let params: Params
@@ -175,9 +191,15 @@ private final class RunningCodexProcess: @unchecked Sendable {
     private let stdoutPipe = Pipe()
     private let stderrPipe = Pipe()
     private let shutdownGraceSeconds: TimeInterval
-    private let lock = NSLock()
+    private let condition = NSCondition()
     private var diagnostics = CodexDiagnosticAccumulator()
-    private var stopped = false
+    private var stopState = StopState.idle
+
+    private enum StopState {
+        case idle
+        case stopping
+        case stopped
+    }
 
     init(executableURL: URL, shutdownGraceSeconds: TimeInterval) throws {
         self.shutdownGraceSeconds = shutdownGraceSeconds
@@ -202,9 +224,11 @@ private final class RunningCodexProcess: @unchecked Sendable {
         }
     }
 
+    var processIdentifier: Int32 { process.processIdentifier }
+
     func exchange<Params: Encodable & Sendable, Result: Decodable & Sendable>(
         method: String,
-        params: Params,
+        params: Params?,
         result: Result.Type
     ) async throws -> Result {
         try write(Request(id: 0, method: "initialize", params: InitializeParams()))
@@ -222,11 +246,20 @@ private final class RunningCodexProcess: @unchecked Sendable {
             if id == 0, !initialized {
                 initialized = true
                 try write(Notification(method: "initialized", params: EmptyParams()))
-                try write(Request(id: 1, method: method, params: params))
+                if let params {
+                    try write(Request(id: 1, method: method, params: params))
+                } else {
+                    try write(ParameterlessRequest(id: 1, method: method))
+                }
                 continue
             }
             guard id == 1 else { continue }
-            let envelope = try JSONDecoder().decode(CodexRPCResponse<Result>.self, from: data)
+            let envelope: CodexRPCResponse<Result>
+            do {
+                envelope = try JSONDecoder().decode(CodexRPCResponse<Result>.self, from: data)
+            } catch {
+                throw CodexAppServerError.malformedResponse
+            }
             if let rpc = envelope.error {
                 throw CodexAppServerError.rpcError(code: rpc.code)
             }
@@ -242,23 +275,34 @@ private final class RunningCodexProcess: @unchecked Sendable {
     private func write<Value: Encodable>(_ value: Value) throws {
         // ponytail: withoutEscapingSlashes so method paths match JSONL peers (fixtures + Codex)
         let encoder = JSONEncoder()
-        encoder.outputFormatting = .withoutEscapingSlashes
+        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
         var data = try encoder.encode(value)
         data.append(0x0A)
         try stdinPipe.fileHandleForWriting.write(contentsOf: data)
     }
 
     private func appendDiagnostics(_ chunk: Data) {
-        lock.lock()
+        condition.lock()
         diagnostics.append(chunk)
-        lock.unlock()
+        condition.unlock()
     }
 
     func stop() {
-        lock.lock()
-        guard !stopped else { lock.unlock(); return }
-        stopped = true
-        lock.unlock()
+        condition.lock()
+        switch stopState {
+        case .stopped:
+            condition.unlock()
+            return
+        case .stopping:
+            while stopState != .stopped {
+                condition.wait()
+            }
+            condition.unlock()
+            return
+        case .idle:
+            stopState = .stopping
+            condition.unlock()
+        }
 
         try? stdinPipe.fileHandleForWriting.close()
         if process.isRunning { process.terminate() }
@@ -267,8 +311,15 @@ private final class RunningCodexProcess: @unchecked Sendable {
             Thread.sleep(forTimeInterval: 0.01)
         }
         if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) }
+        // Reap so isRunning settles after SIGKILL.
+        process.waitUntilExit()
         stderrPipe.fileHandleForReading.readabilityHandler = nil
         try? stdoutPipe.fileHandleForReading.close()
         try? stderrPipe.fileHandleForReading.close()
+
+        condition.lock()
+        stopState = .stopped
+        condition.broadcast()
+        condition.unlock()
     }
 }

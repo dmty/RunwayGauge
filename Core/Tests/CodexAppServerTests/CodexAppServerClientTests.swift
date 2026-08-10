@@ -125,4 +125,118 @@ struct CodexAppServerClientTests {
             try await CodexAppServerClient(executableURL: script).readAccount()
         }
     }
+
+    @Test("deadline arbitration discards late success")
+    func deadlineArbitration() {
+        final class Events: @unchecked Sendable {
+            private let lock = NSLock()
+            private var values: [String] = []
+            func append(_ value: String) {
+                lock.lock(); values.append(value); lock.unlock()
+            }
+            var snapshot: [String] {
+                lock.lock(); defer { lock.unlock() }; return values
+            }
+        }
+        let events = Events()
+        let gate = OperationDeadline(timeoutSeconds: 0.05) {
+            events.append("timeout")
+        }
+        Thread.sleep(forTimeInterval: 0.08)
+        let won = gate.tryComplete()
+        events.append(won ? "success" : "discarded")
+        #expect(won == false)
+        #expect(gate.timedOut)
+        #expect(events.snapshot == ["timeout", "discarded"])
+    }
+
+    @Test("late fixture response loses to the deadline")
+    func lateResponseTimedOut() async throws {
+        let script = try makeServerScript(body: #"""
+        sleep 0.2
+        printf '%s\n' '{"id":0,"result":{}}'
+        IFS= read -r _
+        IFS= read -r _
+        printf '%s\n' '{"id":1,"result":{"account":{"type":"chatgpt","planType":"plus"}}}'
+        """#)
+        await #expect(throws: CodexAppServerError.timedOut) {
+            try await CodexAppServerClient(
+                executableURL: script,
+                timeoutSeconds: 0.05,
+                shutdownGraceSeconds: 0.05
+            ).readAccount()
+        }
+    }
+
+    @Test("timeout waits until TERM-resistant child is gone")
+    func stopWaitsForTermResistantChild() async throws {
+        let script = try makeServerScript(body: #"""
+        trap '' TERM
+        exec sleep 30
+        """#)
+        let marker = script.deletingLastPathComponent().lastPathComponent
+        let client = CodexAppServerClient(
+            executableURL: script,
+            timeoutSeconds: 0.05,
+            shutdownGraceSeconds: 0.15
+        )
+        let started = Date()
+        await #expect(throws: CodexAppServerError.timedOut) {
+            try await client.readAccount()
+        }
+        #expect(Date().timeIntervalSince(started) >= 0.15)
+        let probe = Process()
+        probe.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        probe.arguments = ["-f", marker]
+        let sink = Pipe()
+        probe.standardOutput = sink
+        probe.standardError = sink
+        try probe.run()
+        probe.waitUntilExit()
+        #expect(probe.terminationStatus == 1)
+    }
+
+    @Test("rateLimits/read omits params in emitted JSONL")
+    func rateLimitsOmitsParams() async throws {
+        let script = try makeServerScript(body: #"""
+        log="${0}.log"
+        while IFS= read -r line; do
+          printf '%s\n' "$line" >> "$log"
+          case "$line" in
+            *'"method":"initialize"'*)
+              printf '%s\n' '{"id":0,"result":{}}'
+              ;;
+            *'"method":"account/rateLimits/read"'*)
+              printf '%s\n' '{"id":1,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":1,"windowDurationMins":300,"resetsAt":2000},"secondary":null,"planType":"plus"},"rateLimitsByLimitId":null}}'
+              ;;
+          esac
+        done
+        """#)
+        _ = try await CodexAppServerClient(executableURL: script).readRateLimits()
+        let log = try String(contentsOfFile: script.path + ".log", encoding: .utf8)
+        let rateLimitLine = log.split(separator: "\n").first {
+            $0.contains(#""method":"account/rateLimits/read""#)
+        }
+        #expect(rateLimitLine == #"{"id":1,"method":"account/rateLimits/read"}"#)
+        #expect(!log.contains(#""params":null"#))
+    }
+
+    @Test("schema-incompatible result is malformedResponse")
+    func schemaIncompatibleResult() async throws {
+        let script = try makeServerScript(body: #"""
+        while IFS= read -r line; do
+          case "$line" in
+            *'"method":"initialize"'*)
+              printf '%s\n' '{"id":0,"result":{}}'
+              ;;
+            *'"method":"account/read"'*)
+              printf '%s\n' '{"id":1,"result":{"account":"not-an-object"}}'
+              ;;
+          esac
+        done
+        """#)
+        await #expect(throws: CodexAppServerError.malformedResponse) {
+            try await CodexAppServerClient(executableURL: script).readAccount()
+        }
+    }
 }
