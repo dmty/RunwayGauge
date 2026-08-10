@@ -31,4 +31,12 @@ enum AccountSettingsPolicy {
             fileSystem: LocalSourceFileSystem()
         ) == .comingSoon
     }
+
+    static func usageHealth(for record: UsageRecord) -> String {
+        if let status = record.fetchStatus, status.state != .ok {
+            if let message = status.message, !message.isEmpty { return message }
+            return status.state == .rateLimited ? "Rate limited" : "Fetch failed"
+        }
+        return record.windows.isEmpty ? "No usage windows" : "Usage available"
+    }
 }

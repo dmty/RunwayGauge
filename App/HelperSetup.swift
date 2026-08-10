@@ -98,7 +98,7 @@ enum HelperSetup {
                   let configDir = account.credentials.configDir else { return nil }
             return AccountValidation.normalizePath(configDir, home: home)
         })
-        return (["helper-config-v1"] + configDirectories.sorted()).joined(separator: "\n")
+        return (["helper-config-v2"] + configDirectories.sorted()).joined(separator: "\n")
     }
 
     static func markConfigured(registry: AccountRegistry) {

@@ -245,10 +245,10 @@ private final class RunningCodexProcess: @unchecked Sendable {
             else { throw CodexAppServerError.malformedResponse }
             guard probe.method == nil, let id = probe.id else { continue }
 
-            if let rpc = probe.error {
-                throw CodexAppServerError.rpcError(code: rpc.code)
-            }
             if id == 0, !initialized {
+                if let rpc = probe.error {
+                    throw CodexAppServerError.rpcError(code: rpc.code)
+                }
                 initialized = true
                 try write(Notification(method: "initialized", params: EmptyParams()))
                 try write(Request(id: 1, method: method, params: params))

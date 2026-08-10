@@ -539,7 +539,7 @@ struct SettingsView: View {
         switch UsageStore.load(accountId: account.id) {
         case .missing: return "No usage file"
         case .unreadable: return "Usage file unreadable"
-        case .record(let record): return record.windows.isEmpty ? "No usage windows" : "Usage available"
+        case .record(let record): return AccountSettingsPolicy.usageHealth(for: record)
         }
     }
 

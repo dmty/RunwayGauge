@@ -126,6 +126,27 @@ struct CodexAppServerClientTests {
         }
     }
 
+    @Test("unmatched RPC errors are ignored")
+    func unmatchedRPCErrorIgnored() async throws {
+        let script = try makeServerScript(body: #"""
+        while IFS= read -r line; do
+          case "$line" in
+            *'"method":"initialize"'*)
+              printf '%s\n' '{"id":99,"error":{"code":-32000,"message":"unrelated"}}'
+              printf '%s\n' '{"id":0,"result":{}}'
+              ;;
+            *'"method":"account/read"'*)
+              printf '%s\n' '{"id":98,"error":{"code":-32001,"message":"also unrelated"}}'
+              printf '%s\n' '{"id":1,"result":{"account":{"type":"chatgpt","planType":"plus"},"requiresOpenaiAuth":true}}'
+              ;;
+          esac
+        done
+        """#)
+
+        let account = try await CodexAppServerClient(executableURL: script).readAccount()
+        #expect(account.account?.planType == "plus")
+    }
+
     @Test("timely response wins when shutdown races the deadline")
     func timelyResponseWinsShutdownRace() async throws {
         // ponytail: grace > timeout + SIG_IGN — fails if stop runs before tryComplete
