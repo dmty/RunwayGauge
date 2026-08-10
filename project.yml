@@ -12,7 +12,8 @@ schemes:
     build:
       targets:
         UsageWidget: all
-        UsageWidgetTests: [test]
+        UsageWidgetTests:
+          - test
     test:
       targets:
         - UsageWidgetTests
@@ -23,7 +24,7 @@ settings:
     CODE_SIGN_IDENTITY: '-'
     DEVELOPMENT_TEAM: ''
     ENABLE_HARDENED_RUNTIME: 'YES'
-    MARKETING_VERSION: 0.2.0
+    MARKETING_VERSION: 0.3.0
     CURRENT_PROJECT_VERSION: '100'
 packages:
   UsageCore:
@@ -46,7 +47,7 @@ targets:
     preBuildScripts:
       - name: Sync helpers bundle
         basedOnDependencyAnalysis: false
-        script: "${SRCROOT}/scripts/sync-helpers-bundle.sh"
+        script: ${SRCROOT}/scripts/sync-helpers-bundle.sh
     dependencies:
       - package: UsageCore
         product: UsageCore

@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.3.0](https://github.com/dmty/RunwayGauge/compare/v0.2.0...v0.3.0) (2026-08-10)
+
+
+### Features
+
+* **accounts:** add cycle intent and widget timeline ([e175e12](https://github.com/dmty/RunwayGauge/commit/e175e123e6196125d4fa031883091b5781ee423d))
+* **accounts:** add multi-account poller and install ([a220350](https://github.com/dmty/RunwayGauge/commit/a22035012685063c0de0a6c617205739db90e142))
+* **accounts:** add registry models and store ([f3ffa12](https://github.com/dmty/RunwayGauge/commit/f3ffa12d9c5971bb09974e7cd33d4c7be180b894))
+* **accounts:** add selection and display rotation ([7adeb96](https://github.com/dmty/RunwayGauge/commit/7adeb965b0d2cf4f12abc785864d1d7a9b6c74e6))
+* **accounts:** add Settings and Keychain discovery ([8b90fe0](https://github.com/dmty/RunwayGauge/commit/8b90fe0f36776f83517ae1f0741e4c16b31f3e79))
+* **accounts:** add shell registry and usage commit ([b0ac516](https://github.com/dmty/RunwayGauge/commit/b0ac51604af54630ff1c45fcb2491eb774bc447e))
+* **accounts:** add source adapters and discovery ([ce87c77](https://github.com/dmty/RunwayGauge/commit/ce87c7788d9d73fa6bc1acc5e535dd24ee7b6483))
+* **accounts:** add usage paths and safe bootstrap ([1254d2f](https://github.com/dmty/RunwayGauge/commit/1254d2f2d2aa57a4800208cf260320e3f43d7b4c))
+* **accounts:** add validation and locked mutate ([bd6d9dd](https://github.com/dmty/RunwayGauge/commit/bd6d9dd80a2e4552bae3d0428d5d21e520771c6f))
+* add Edit Widget toggles for usage display options ([468528d](https://github.com/dmty/RunwayGauge/commit/468528d9209cac663d4a126e4033b54223bbd812))
+* add locked atomic usage commit in UsageCore ([1113905](https://github.com/dmty/RunwayGauge/commit/111390547e4707449aae9dd7925357ef14191a66))
+* add manual usage refresh and document Edit Widget options ([44668b0](https://github.com/dmty/RunwayGauge/commit/44668b03403e6685b5f4edae9b070da0674db1a4))
+* add runwaygauge-helper poll and write commands ([2e5ca9d](https://github.com/dmty/RunwayGauge/commit/2e5ca9dfd939829753ee4184ff2d3426735ec6bf))
+* add usage display option filtering ([c5466f6](https://github.com/dmty/RunwayGauge/commit/c5466f6fb8ef13f8ed7fb1ab81442908b347ead0))
+* add usage schema 2 fields and severity-aware levels ([9b9a38a](https://github.com/dmty/RunwayGauge/commit/9b9a38a3fbb5cb192996ba02b76e3f123736e97c))
+* map Anthropic OAuth and statusline payloads into usage records ([f4b01a6](https://github.com/dmty/RunwayGauge/commit/f4b01a606499dbc7c0cf69f31f5f241ca06a115d))
+* ship Swift usage helper via launchd and statusline ([cb0011d](https://github.com/dmty/RunwayGauge/commit/cb0011d9c8e1c84f3e05d32cd986ed0a8dfe8f36))
+* **widget:** add corner cycle and settings controls ([60b19b5](https://github.com/dmty/RunwayGauge/commit/60b19b5463ccf202d7ee6f13bd7adc6216893d77))
+
+
+### Bug Fixes
+
+* **accounts:** prune stale Keychain rows on refresh ([87bf4d3](https://github.com/dmty/RunwayGauge/commit/87bf4d30673430e2d59a60da1925e187fdeabe30))
+* expose UsageDisplayOptions public initializer ([ae4085f](https://github.com/dmty/RunwayGauge/commit/ae4085f8bb0afe0c481cb2f6840743e210288971))
+* filter display defaults, force helper reconfig, universal helper binary ([032bd79](https://github.com/dmty/RunwayGauge/commit/032bd79136fe8c9041536641ac2f25a4beefa34d))
+* poll on OAuth age not statusline mtime ([46c17dc](https://github.com/dmty/RunwayGauge/commit/46c17dc53724515239f41a52ff6590de0a7155ba))
+* preserve enriched windows and last-good timestamps on helper writes ([daa0981](https://github.com/dmty/RunwayGauge/commit/daa0981ad49fb93fc25c3e40d83224bb8a2d01b4))
+* tighten statusline merge and skip empty statusline writes ([e03471e](https://github.com/dmty/RunwayGauge/commit/e03471e706de8e3a26194c8ebd7110bcbc3dbfd4))
+* use BSD flock for usage commit lock parity with shell ([5ebbf39](https://github.com/dmty/RunwayGauge/commit/5ebbf39a11eacf3258ace4cfc0a4a0fd1a1b3107))
+
 ## [0.2.0](https://github.com/dmty/RunwayGauge/compare/v0.1.0...v0.2.0) (2026-08-04)
 
 
