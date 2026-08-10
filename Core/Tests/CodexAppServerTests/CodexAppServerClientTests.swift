@@ -128,15 +128,14 @@ struct CodexAppServerClientTests {
 
     @Test("timely response wins when shutdown races the deadline")
     func timelyResponseWinsShutdownRace() async throws {
-        // TERM-resistant + grace > timeout: stop()-before-tryComplete lets the deadline
-        // fire mid-shutdown and steal a timely success.
+        // ponytail: grace > timeout + SIG_IGN — fails if stop runs before tryComplete
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "codex-app-server-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let server = directory.appending(path: "server.py")
         try Data("""
         #!/usr/bin/env python3
-        import os, signal, sys, time
+        import signal, sys, time
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         for line in sys.stdin:
             if '"method":"initialize"' in line:
