@@ -89,9 +89,13 @@ public struct CodexAppServerClient: CodexAppServerServing, Sendable {
                             params: params,
                             result: result
                         )
+                        // Arbitrate before shutdown so a timely response cannot lose
+                        // to a deadline that fires during stop()'s grace period.
                         guard gate.tryComplete() else {
+                            child.stop()
                             throw CodexAppServerError.timedOut
                         }
+                        child.stop()
                         return value
                     } catch {
                         if !gate.tryComplete() {
@@ -267,7 +271,7 @@ private final class RunningCodexProcess: @unchecked Sendable {
             guard let value = envelope.result else {
                 throw CodexAppServerError.missingResult
             }
-            stop()
+            // ponytail: no stop() here — caller arbitrates tryComplete first, then stops
             return value
         }
         throw CodexAppServerError.exitedEarly

@@ -20,7 +20,7 @@ private func makeServerScript(body: String) throws -> URL {
     return script
 }
 
-@Suite("CodexAppServerClientTests")
+@Suite("CodexAppServerClientTests", .serialized)
 struct CodexAppServerClientTests {
     @Test("handshakes before account read and ignores notifications")
     func accountReadHandshake() async throws {
@@ -126,6 +126,43 @@ struct CodexAppServerClientTests {
         }
     }
 
+    @Test("timely response wins when shutdown races the deadline")
+    func timelyResponseWinsShutdownRace() async throws {
+        // TERM-resistant + grace > timeout: stop()-before-tryComplete lets the deadline
+        // fire mid-shutdown and steal a timely success.
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "codex-app-server-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let server = directory.appending(path: "server.py")
+        try Data("""
+        #!/usr/bin/env python3
+        import os, signal, sys, time
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        for line in sys.stdin:
+            if '"method":"initialize"' in line:
+                print('{"id":0,"result":{}}', flush=True)
+            elif '"method":"account/read"' in line:
+                print('{"id":1,"result":{"account":{"type":"chatgpt","planType":"plus"}}}', flush=True)
+                while True:
+                    time.sleep(1)
+        """.utf8).write(to: server)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: server.path)
+        let script = directory.appending(path: "codex")
+        try Data("""
+        #!/bin/sh
+        test "$1" = "app-server" || exit 64
+        exec "$(dirname "$0")/server.py"
+        """.utf8).write(to: script)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+
+        let result = try await CodexAppServerClient(
+            executableURL: script,
+            timeoutSeconds: 2.0,
+            shutdownGraceSeconds: 2.5
+        ).readAccount()
+        #expect(result.account == CodexAccountInfo(type: "chatgpt", planType: "plus"))
+    }
+
     @Test("deadline arbitration discards late success")
     func deadlineArbitration() {
         final class Events: @unchecked Sendable {
@@ -170,21 +207,39 @@ struct CodexAppServerClientTests {
 
     @Test("timeout waits until TERM-resistant child is gone")
     func stopWaitsForTermResistantChild() async throws {
-        let script = try makeServerScript(body: #"""
-        trap '' TERM
-        exec sleep 30
-        """#)
-        let marker = script.deletingLastPathComponent().lastPathComponent
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "codex-app-server-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let server = directory.appending(path: "hang.py")
+        try Data("""
+        #!/usr/bin/env python3
+        import signal, time
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        while True:
+            time.sleep(1)
+        """.utf8).write(to: server)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: server.path)
+        let script = directory.appending(path: "codex")
+        try Data("""
+        #!/bin/sh
+        test "$1" = "app-server" || exit 64
+        exec "$(dirname "$0")/hang.py"
+        """.utf8).write(to: script)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+
+        let marker = directory.lastPathComponent
+        // timeout >> python startup so SIGTERM is ignored before stop()'s terminate()
         let client = CodexAppServerClient(
             executableURL: script,
-            timeoutSeconds: 0.05,
-            shutdownGraceSeconds: 0.15
+            timeoutSeconds: 0.5,
+            shutdownGraceSeconds: 0.25
         )
         let started = Date()
         await #expect(throws: CodexAppServerError.timedOut) {
             try await client.readAccount()
         }
-        #expect(Date().timeIntervalSince(started) >= 0.15)
+        // Deadline floor; SIGKILL/reap timing varies, so liveness is asserted via pgrep below.
+        #expect(Date().timeIntervalSince(started) >= 0.5)
         let probe = Process()
         probe.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
         probe.arguments = ["-f", marker]
