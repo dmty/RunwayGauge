@@ -24,9 +24,36 @@ struct PollTargetTests {
         let targets = PollTargets.list(from: registry)
 
         #expect(targets.map(\.accountId) == ["acc_secondary", "acc_primary"])
-        #expect(targets[0].keychainService == "shared-service")
-        #expect(targets[0].keychainAccount == "secondary-user")
-        #expect(targets[1].keychainAccount == "primary-user")
+        guard case .claude(
+            let secondaryId,
+            let secondaryLabel,
+            let secondaryConfig,
+            let secondaryService,
+            let secondaryAccount
+        ) = targets[0] else {
+            Issue.record("expected .claude target at [0]")
+            return
+        }
+        #expect(secondaryId == "acc_secondary")
+        #expect(secondaryLabel == "Secondary")
+        #expect(secondaryConfig == "/tmp/secondary")
+        #expect(secondaryService == "shared-service")
+        #expect(secondaryAccount == "secondary-user")
+
+        guard case .claude(
+            let primaryId,
+            _,
+            let primaryConfig,
+            let primaryService,
+            let primaryAccount
+        ) = targets[1] else {
+            Issue.record("expected .claude target at [1]")
+            return
+        }
+        #expect(primaryId == "acc_primary")
+        #expect(primaryConfig == "/tmp/primary")
+        #expect(primaryService == "shared-service")
+        #expect(primaryAccount == "primary-user")
     }
 
     @Test("skips pinned accounts without both keychain selectors")
@@ -68,6 +95,84 @@ struct PollTargetTests {
 
         let targets = PollTargets.list(from: registry)
         #expect(targets.map(\.accountId) == ["acc_b"])
+        guard case .claude(
+            let id,
+            let label,
+            let configDir,
+            let service,
+            let account
+        ) = targets[0] else {
+            Issue.record("expected .claude target")
+            return
+        }
+        #expect(id == "acc_b")
+        #expect(label == "B")
+        #expect(configDir == "/tmp/b")
+        #expect(service == "svc")
+        #expect(account == "user")
+    }
+
+    @Test("lists one pinned Codex target with its absolute executable")
+    func listsPinnedCodex() throws {
+        let registry = AccountRegistry(
+            revision: 2,
+            prefs: AccountPreferences(selectedAccountId: CodexAccount.id),
+            accounts: [
+                Account(
+                    id: CodexAccount.id,
+                    label: "Codex",
+                    sourceKind: .codex,
+                    pinned: true,
+                    credentials: AccountCredentials(nonSecretFields: [
+                        CodexAccount.executablePathKey: "/opt/homebrew/bin/codex",
+                    ])
+                ),
+            ]
+        )
+
+        #expect(PollTargets.list(from: registry) == [
+            .codex(
+                accountId: CodexAccount.id,
+                label: "Codex",
+                executablePath: "/opt/homebrew/bin/codex"
+            ),
+        ])
+    }
+
+    @Test("skips a pinned Codex row without an executable path")
+    func skipsInvalidCodex() {
+        let registry = AccountRegistry(
+            revision: 2,
+            prefs: AccountPreferences(),
+            accounts: [Account(
+                id: CodexAccount.id,
+                label: "Codex",
+                sourceKind: .codex,
+                pinned: true,
+                credentials: AccountCredentials()
+            )]
+        )
+
+        #expect(PollTargets.list(from: registry).isEmpty)
+    }
+
+    @Test("skips the valid default Codex row while it is unpinned")
+    func skipsUnpinnedCodex() {
+        let registry = AccountRegistry(
+            revision: 2,
+            prefs: AccountPreferences(),
+            accounts: [Account(
+                id: CodexAccount.id,
+                label: "Codex",
+                sourceKind: .codex,
+                pinned: false,
+                credentials: AccountCredentials(nonSecretFields: [
+                    CodexAccount.executablePathKey: "/opt/homebrew/bin/codex",
+                ])
+            )]
+        )
+
+        #expect(PollTargets.list(from: registry).isEmpty)
     }
 
     @Test("resolves account id from configDir")

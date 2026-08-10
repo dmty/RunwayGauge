@@ -1,28 +1,57 @@
 import Foundation
 
-public struct PollTarget: Equatable, Sendable {
-    public let accountId: String
-    public let label: String
-    public let configDir: String?
-    public let keychainService: String
-    public let keychainAccount: String
+public enum PollTarget: Equatable, Sendable {
+    case claude(
+        accountId: String,
+        label: String,
+        configDir: String?,
+        keychainService: String,
+        keychainAccount: String
+    )
+    case codex(
+        accountId: String,
+        label: String,
+        executablePath: String
+    )
+
+    public var accountId: String {
+        switch self {
+        case .claude(let accountId, _, _, _, _),
+             .codex(let accountId, _, _): accountId
+        }
+    }
 }
 
 public enum PollTargets {
     public static func list(from registry: AccountRegistry) -> [PollTarget] {
         let selected = registry.prefs.selectedAccountId
         let targets = registry.accounts.compactMap { account -> PollTarget? in
-            guard account.pinned, account.sourceKind == .claudeOAuth,
-                  let keychain = account.credentials.keychain else { return nil }
-            guard let service = trimmed(keychain.service),
-                  let accountName = trimmed(keychain.account) else { return nil }
-            return PollTarget(
-                accountId: account.id,
-                label: account.label,
-                configDir: account.credentials.configDir.flatMap(trimmed),
-                keychainService: service,
-                keychainAccount: accountName
-            )
+            guard account.pinned else { return nil }
+            switch account.sourceKind {
+            case .claudeOAuth:
+                guard let keychain = account.credentials.keychain,
+                      let service = trimmed(keychain.service),
+                      let keychainAccount = trimmed(keychain.account)
+                else { return nil }
+                return .claude(
+                    accountId: account.id,
+                    label: account.label,
+                    configDir: account.credentials.configDir.flatMap(trimmed),
+                    keychainService: service,
+                    keychainAccount: keychainAccount
+                )
+            case .codex:
+                guard let path = account.credentials.nonSecretFields[
+                    CodexAccount.executablePathKey
+                ].flatMap(trimmed), path.hasPrefix("/") else { return nil }
+                return .codex(
+                    accountId: account.id,
+                    label: account.label,
+                    executablePath: URL(fileURLWithPath: path).standardizedFileURL.path
+                )
+            default:
+                return nil
+            }
         }
         return targets.sorted { a, b in
             let aSel = a.accountId == selected

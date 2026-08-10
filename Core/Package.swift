@@ -14,7 +14,7 @@ let package = Package(
         .target(name: "CodexAppServer", dependencies: ["UsageCore"]),
         .executableTarget(
             name: "RunwayGaugeHelper",
-            dependencies: ["UsageCore"]
+            dependencies: ["UsageCore", "CodexAppServer"]
         ),
         .testTarget(name: "UsageCoreTests", dependencies: ["UsageCore"]),
         .testTarget(
