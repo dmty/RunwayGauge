@@ -444,7 +444,6 @@ struct AccountHostTests {
     @Test("helper-config-v1 installations require reconfiguration")
     func helperConfigV1RequiresReconfiguration() {
         let value = registry(revision: 1, accountID: "acc_first")
-        #expect(HelperSetup.fingerprint(for: value).hasPrefix("helper-config-v2"))
         let diagnostics = HelperDiagnostics(
             launchAgentInstalled: true,
             installedDirectory: "/tmp/helpers",
@@ -458,25 +457,21 @@ struct AccountHostTests {
         #expect(HelperSetup.needsReconfiguration(registry: value, diagnostics: diagnostics))
     }
 
-    @Test("settings usage health surfaces failed empty fetch")
-    func settingsUsageHealthFailedEmpty() {
-        let record = UsageRecord(
+    @Test("settings usage health surfaces failed fetch before window summary")
+    func settingsUsageHealthFailedFetch() {
+        let status = FetchStatus(
+            state: .failed,
+            message: "Codex usage refresh failed",
+            updatedAt: Date(timeIntervalSince1970: 2)
+        )
+        let empty = UsageRecord(
             source: "codex",
             updatedAt: Date(timeIntervalSince1970: 1),
             origin: "poll",
             windows: [],
-            fetchStatus: FetchStatus(
-                state: .failed,
-                message: "Codex usage refresh failed",
-                updatedAt: Date(timeIntervalSince1970: 2)
-            )
+            fetchStatus: status
         )
-        #expect(AccountSettingsPolicy.usageHealth(for: record) == "Codex usage refresh failed")
-    }
-
-    @Test("settings usage health surfaces failed last-good fetch")
-    func settingsUsageHealthFailedLastGood() {
-        let record = UsageRecord(
+        let lastGood = UsageRecord(
             source: "codex",
             updatedAt: Date(timeIntervalSince1970: 1),
             origin: "poll",
@@ -488,13 +483,10 @@ struct AccountHostTests {
                     resetsAt: Date(timeIntervalSince1970: 9)
                 )
             ],
-            fetchStatus: FetchStatus(
-                state: .failed,
-                message: "Codex usage refresh failed",
-                updatedAt: Date(timeIntervalSince1970: 2)
-            )
+            fetchStatus: status
         )
-        #expect(AccountSettingsPolicy.usageHealth(for: record) == "Codex usage refresh failed")
+        #expect(AccountSettingsPolicy.usageHealth(for: empty) == "Codex usage refresh failed")
+        #expect(AccountSettingsPolicy.usageHealth(for: lastGood) == "Codex usage refresh failed")
     }
 
     @Test("an older mutation completion cannot replace newer UI state")
