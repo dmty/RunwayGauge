@@ -14,6 +14,7 @@ public enum PollPolicy {
         fileModificationDate: Date?,
         fetchStatus: FetchStatus?,
         origin: String? = nil,
+        windows: [UsageWindow] = [],
         now: Date = Date()
     ) -> Bool {
         if force { return true }
@@ -22,6 +23,11 @@ public enum PollPolicy {
            let until = status.retryAfterAt {
             // Still cooling down → skip. Cooldown expired → fetch even if mtime is fresh.
             return now >= until
+        }
+
+        // A rolled-over window is already wrong; don't wait out maxAge.
+        if windows.contains(where: { $0.resetsAt <= now }) {
+            return true
         }
 
         // Prefer last OAuth/poll attempt time. Statusline mtime must not suppress polls.

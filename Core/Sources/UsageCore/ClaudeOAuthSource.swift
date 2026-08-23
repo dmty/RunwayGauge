@@ -40,23 +40,26 @@ public struct ClaudeOAuthSource: UsageSource {
             return KeychainReference(service: item.service, account: item.account)
         }
 
-        if hasDefaultConfig,
-           keychainCandidates.count == 1,
-           keychainCandidates[0].service == Self.genericKeychainService {
-            return [discovered(label: displayName, configDir: configURL.path, keychain: keychainCandidates[0])]
+        let genericCandidates = keychainCandidates.filter { $0.service == Self.genericKeychainService }
+        if hasDefaultConfig, genericCandidates.count == 1 {
+            var results = [
+                discovered(
+                    label: displayName,
+                    configDir: configURL.path,
+                    keychain: genericCandidates[0]
+                ),
+            ]
+            results += keychainCandidates.filter { $0.service != Self.genericKeychainService }.map {
+                discoveredKeychainAccount($0)
+            }
+            return results
         }
 
         var results: [DiscoveredAccount] = []
         if hasDefaultConfig {
             results.append(discovered(label: displayName, configDir: configURL.path))
         }
-        results += keychainCandidates.map { reference in
-            let accountLabel = reference.account?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let label = accountLabel.flatMap { $0.isEmpty ? nil : $0 }
-                ?? displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-            return discovered(label: label, keychain: reference)
-        }
+        results += keychainCandidates.map(discoveredKeychainAccount)
         return results
     }
 
@@ -80,6 +83,14 @@ public struct ClaudeOAuthSource: UsageSource {
 
     public func paneModel(account: Account, record: UsageRecord?) -> UsagePaneModel {
         .usage(sourceKind: kind, label: account.label, record: record)
+    }
+
+    private func discoveredKeychainAccount(_ reference: KeychainReference) -> DiscoveredAccount {
+        let accountLabel = reference.account?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let label = accountLabel.flatMap { $0.isEmpty ? nil : $0 }
+            ?? displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return discovered(label: label, keychain: reference)
     }
 
     private func discovered(

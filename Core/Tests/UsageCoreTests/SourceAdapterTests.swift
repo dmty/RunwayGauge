@@ -193,6 +193,37 @@ struct SourceAdapterTests {
         #expect(discovered[0].credentials.keychain?.account == "user@example.com")
     }
 
+    @Test("pairs unique generic Keychain with default config even when suffixed extras exist")
+    func uniqueGenericPairsDespiteSuffixedExtras() throws {
+        let home = try temporaryHome()
+        let config = home.appending(path: ".claude")
+        try FileManager.default.createDirectory(at: config, withIntermediateDirectories: true)
+
+        let discovered = ClaudeOAuthSource().discover(
+            home: home,
+            keychainItems: [
+                KeychainItemDescriptor(
+                    service: "Claude Code-credentials",
+                    account: "dmitry"
+                ),
+                KeychainItemDescriptor(
+                    service: "Claude Code-credentials-f2d5f7a5",
+                    account: "dmitry"
+                ),
+            ]
+        )
+
+        #expect(discovered.count == 2)
+        let merged = discovered.first { $0.credentials.configDir != nil }
+        #expect(merged?.credentials.configDir == config.path)
+        #expect(merged?.credentials.keychain?.service == "Claude Code-credentials")
+        #expect(merged?.credentials.keychain?.account == "dmitry")
+        #expect(discovered.contains {
+            $0.credentials.configDir == nil
+                && $0.credentials.keychain?.service == "Claude Code-credentials-f2d5f7a5"
+        })
+    }
+
     @Test("reports config-only and Keychain-only capability")
     func partialCredentialHealth() {
         let configPath = "/Users/test/.claude"

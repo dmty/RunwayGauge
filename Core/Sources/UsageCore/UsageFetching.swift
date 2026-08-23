@@ -43,6 +43,7 @@ public struct UsagePoller {
             fileModificationDate: mtime,
             fetchStatus: existing?.fetchStatus,
             origin: existing?.origin,
+            windows: existing?.windows ?? [],
             now: now
         ) else { return .skipped }
 

@@ -18,13 +18,14 @@ enum PollCommand {
             case .claude(
                 let accountId,
                 _,
-                _,
+                let configDir,
                 let keychainService,
                 let keychainAccount
             ):
-                guard let token = KeychainTokenReader.accessToken(
-                    service: keychainService,
-                    account: keychainAccount
+                guard let token = ClaudeTokenResolver.accessToken(
+                    configDir: configDir,
+                    keychainService: keychainService,
+                    keychainAccount: keychainAccount
                 ) else { continue }
                 _ = await UsagePoller(fetcher: UsageHTTPClient()).poll(
                     accountId: accountId,

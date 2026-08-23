@@ -5,8 +5,8 @@ public enum PollTarget: Equatable, Sendable {
         accountId: String,
         label: String,
         configDir: String?,
-        keychainService: String,
-        keychainAccount: String
+        keychainService: String?,
+        keychainAccount: String?
     )
     case codex(
         accountId: String,
@@ -29,14 +29,16 @@ public enum PollTargets {
             guard account.pinned else { return nil }
             switch account.sourceKind {
             case .claudeOAuth:
-                guard let keychain = account.credentials.keychain,
-                      let service = trimmed(keychain.service),
-                      let keychainAccount = trimmed(keychain.account)
-                else { return nil }
+                let configDir = account.credentials.configDir.flatMap(trimmed)
+                let service = account.credentials.keychain.flatMap { trimmed($0.service) }
+                let keychainAccount = account.credentials.keychain.flatMap { trimmed($0.account) }
+                guard configDir != nil || (service != nil && keychainAccount != nil) else {
+                    return nil
+                }
                 return .claude(
                     accountId: account.id,
                     label: account.label,
-                    configDir: account.credentials.configDir.flatMap(trimmed),
+                    configDir: configDir,
                     keychainService: service,
                     keychainAccount: keychainAccount
                 )

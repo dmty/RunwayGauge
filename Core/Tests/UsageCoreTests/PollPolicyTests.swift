@@ -121,6 +121,42 @@ struct PollPolicyTests {
         ))
     }
 
+    @Test("rolled-over windows fetch even when last poll attempt is recent")
+    func rolledOverWindowsFetchDespiteRecentPoll() {
+        let recentPoll = FetchStatus(state: .ok, httpStatus: 200, updatedAt: now.addingTimeInterval(-30))
+        let rolledOver = [
+            UsageWindow(
+                id: "five_hour",
+                label: "Session",
+                usedPercent: 26,
+                resetsAt: now.addingTimeInterval(-60)
+            ),
+        ]
+        #expect(PollPolicy.shouldFetch(
+            force: false,
+            fileModificationDate: now.addingTimeInterval(-30),
+            fetchStatus: recentPoll,
+            origin: "statusline",
+            windows: rolledOver,
+            now: now
+        ))
+        #expect(!PollPolicy.shouldFetch(
+            force: false,
+            fileModificationDate: now.addingTimeInterval(-30),
+            fetchStatus: recentPoll,
+            origin: "statusline",
+            windows: [
+                UsageWindow(
+                    id: "five_hour",
+                    label: "Session",
+                    usedPercent: 26,
+                    resetsAt: now.addingTimeInterval(3600)
+                ),
+            ],
+            now: now
+        ))
+    }
+
     @Test("200 maps fixture and sets fetchStatus ok")
     func okMapping() throws {
         let body = try Data(contentsOf: fixtureURL("oauth-usage-response.json"))

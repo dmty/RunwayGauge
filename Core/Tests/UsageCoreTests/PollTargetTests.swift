@@ -56,8 +56,8 @@ struct PollTargetTests {
         #expect(primaryAccount == "primary-user")
     }
 
-    @Test("skips pinned accounts without both keychain selectors")
-    func skipsConfigOnly() {
+    @Test("lists pinned config-dir accounts even without keychain selectors")
+    func listsPinnedConfigOnly() {
         let registry = AccountRegistry(
             schema: AccountRegistry.currentSchema,
             revision: 1,
@@ -94,7 +94,7 @@ struct PollTargetTests {
         )
 
         let targets = PollTargets.list(from: registry)
-        #expect(targets.map(\.accountId) == ["acc_b"])
+        #expect(targets.map(\.accountId) == ["acc_a", "acc_b"])
         guard case .claude(
             let id,
             let label,
@@ -105,11 +105,11 @@ struct PollTargetTests {
             Issue.record("expected .claude target")
             return
         }
-        #expect(id == "acc_b")
-        #expect(label == "B")
-        #expect(configDir == "/tmp/b")
-        #expect(service == "svc")
-        #expect(account == "user")
+        #expect(id == "acc_a")
+        #expect(label == "A")
+        #expect(configDir == "/tmp/a")
+        #expect(service == nil)
+        #expect(account == nil)
     }
 
     @Test("lists one pinned Codex target with its absolute executable")
