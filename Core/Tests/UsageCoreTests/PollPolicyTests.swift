@@ -35,6 +35,18 @@ private func fixtureURL(_ name: String) throws -> URL {
     throw CocoaError(.fileNoSuchFile)
 }
 
+private func weekOnlyOAuthBody() -> Data {
+    Data("""
+    {
+      "five_hour": null,
+      "seven_day": {
+        "utilization": 12,
+        "resets_at": "2026-08-29T16:59:59.728Z"
+      }
+    }
+    """.utf8)
+}
+
 @Suite("PollPolicyTests")
 struct PollPolicyTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -168,6 +180,61 @@ struct PollPolicyTests {
         #expect(record?.windows.isEmpty == false)
     }
 
+    @Test("200 with null five_hour keeps a live existing session")
+    func pollKeepsLiveSessionWhenAPIOmitsIt() {
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code",
+            updatedAt: now.addingTimeInterval(-60), origin: "statusline",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 8, resetsAt: now.addingTimeInterval(1800)),
+                UsageWindow(id: "seven_day", label: "Week", usedPercent: 3, resetsAt: now.addingTimeInterval(86_400)),
+            ]
+        )
+        let record = PollPolicy.makePollRecord(
+            accountId: "acc_test", status: 200, body: weekOnlyOAuthBody(),
+            retryAfter: nil, existing: existing, observedAt: now
+        )
+        #expect(record?.windows.map(\.id) == ["five_hour", "seven_day"])
+        #expect(record?.windows.first { $0.id == "five_hour" }?.usedPercent == 8)
+        #expect(record?.windows.first { $0.id == "seven_day" }?.usedPercent == 12)
+    }
+
+    @Test("200 with null five_hour inserts a 0% session when none is live")
+    func pollInsertsIdleSessionWhenAPIOmitsIt() {
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code",
+            updatedAt: now.addingTimeInterval(-86_400), origin: "statusline",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 26, resetsAt: now.addingTimeInterval(-3600)),
+            ]
+        )
+        let record = PollPolicy.makePollRecord(
+            accountId: "acc_test", status: 200, body: weekOnlyOAuthBody(),
+            retryAfter: nil, existing: existing, observedAt: now
+        )
+        let session = record?.windows.first { $0.id == "five_hour" }
+        #expect(record?.windows.map(\.id) == ["five_hour", "seven_day"])
+        #expect(session?.usedPercent == 0)
+        #expect(session?.resetsAt == now.addingTimeInterval(5 * 3600))
+        #expect(record?.windows.first { $0.id == "seven_day" }?.usedPercent == 12)
+    }
+
+    @Test("200 with five_hour uses the API session")
+    func pollPrefersAPISession() throws {
+        let body = try Data(contentsOf: fixtureURL("oauth-usage-response.json"))
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code",
+            updatedAt: now.addingTimeInterval(-60), origin: "statusline",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 99, resetsAt: now.addingTimeInterval(1800)),
+            ]
+        )
+        let record = PollPolicy.makePollRecord(
+            accountId: "acc_test", status: 200, body: body, retryAfter: nil, existing: existing, observedAt: now
+        )
+        #expect(record?.windows.contains { $0.id == "five_hour" && $0.usedPercent != 99 } == true)
+    }
+
     @Test("429 preserves windows and last-good updatedAt")
     func rateLimited() {
         let lastGood = now.addingTimeInterval(-500)
@@ -285,6 +352,46 @@ struct PollPolicyTests {
         let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now)
         #expect(prepared?.windows.map(\.id) == ["five_hour", "seven_day_sonnet"])
         #expect(prepared?.windows.contains { $0.id == "seven_day" } == false)
+    }
+
+    @Test("statusline omits five_hour and keeps a live existing session")
+    func statuslineKeepsLiveSessionWhenOmitted() {
+        let mapped = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "statusline",
+            windows: [UsageWindow(id: "seven_day", label: "Week", usedPercent: 3, resetsAt: now.addingTimeInterval(86_400))]
+        )
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code",
+            updatedAt: now.addingTimeInterval(-60), origin: "poll",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 8, resetsAt: now.addingTimeInterval(1800)),
+                UsageWindow(id: "seven_day", label: "Week", usedPercent: 1, resetsAt: now.addingTimeInterval(86_400)),
+            ]
+        )
+        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now)
+        #expect(prepared?.windows.map(\.id) == ["five_hour", "seven_day"])
+        #expect(prepared?.windows.first { $0.id == "five_hour" }?.usedPercent == 8)
+        #expect(prepared?.windows.first { $0.id == "seven_day" }?.usedPercent == 3)
+    }
+
+    @Test("statusline omits five_hour and inserts a 0% session when none is live")
+    func statuslineInsertsIdleSessionWhenOmitted() {
+        let mapped = UsageRecord(
+            accountId: "acc_test", source: "claude-code", updatedAt: now, origin: "statusline",
+            windows: [UsageWindow(id: "seven_day", label: "Week", usedPercent: 3, resetsAt: now.addingTimeInterval(86_400))]
+        )
+        let existing = UsageRecord(
+            accountId: "acc_test", source: "claude-code",
+            updatedAt: now.addingTimeInterval(-86_400), origin: "statusline",
+            windows: [
+                UsageWindow(id: "five_hour", label: "Session", usedPercent: 26, resetsAt: now.addingTimeInterval(-3600)),
+            ]
+        )
+        let prepared = PollPolicy.prepareStatuslineRecord(mapped: mapped, existing: existing, now: now)
+        let session = prepared?.windows.first { $0.id == "five_hour" }
+        #expect(prepared?.windows.map(\.id) == ["five_hour", "seven_day"])
+        #expect(session?.usedPercent == 0)
+        #expect(session?.resetsAt == now.addingTimeInterval(5 * 3600))
     }
 
     @Test("statusline merge drops expired OAuth-only windows")

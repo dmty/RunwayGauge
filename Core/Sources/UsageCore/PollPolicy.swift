@@ -61,7 +61,11 @@ public enum PollPolicy {
                 source: mapped.source,
                 updatedAt: mapped.updatedAt,
                 origin: mapped.origin,
-                windows: mapped.windows,
+                windows: mergePollWindows(
+                    mapped: mapped.windows,
+                    existing: existing?.windows ?? [],
+                    now: observedAt
+                ),
                 plan: mapped.plan ?? existing?.plan,
                 fetchStatus: FetchStatus(state: .ok, httpStatus: 200, updatedAt: observedAt)
             )
@@ -111,8 +115,12 @@ public enum PollPolicy {
             source: mapped.source,
             updatedAt: mapped.updatedAt,
             origin: mapped.origin,
-            windows: mergeWindows(
-                statusline: mapped.windows,
+            windows: mergePollWindows(
+                mapped: mergeWindows(
+                    statusline: mapped.windows,
+                    existing: existing?.windows ?? [],
+                    now: now
+                ),
                 existing: existing?.windows ?? [],
                 now: now
             ),
@@ -130,6 +138,32 @@ public enum PollPolicy {
                 )
             }
         )
+    }
+
+    /// OAuth often sends `five_hour: null` when no session is open. Keep a still-live
+    /// Session; otherwise show 0% until the next 5h window rather than dropping the bar.
+    public static func mergePollWindows(
+        mapped: [UsageWindow],
+        existing: [UsageWindow],
+        now: Date = Date()
+    ) -> [UsageWindow] {
+        if mapped.contains(where: { $0.id == "five_hour" }) {
+            return mapped
+        }
+
+        let session: UsageWindow
+        if let live = existing.first(where: { $0.id == "five_hour" && $0.resetsAt > now }) {
+            session = live
+        } else {
+            session = UsageWindow(
+                id: "five_hour",
+                label: "Session",
+                usedPercent: 0,
+                resetsAt: now.addingTimeInterval(5 * 3600)
+            )
+        }
+
+        return [session] + mapped.filter { $0.id != "five_hour" }
     }
 
     /// - Primary ids (`five_hour` / `seven_day`): statusline values only (omitted → dropped).
