@@ -10,7 +10,6 @@ struct UsageGaugeView: View {
     var options: UsageDisplayOptions = .default
 
     private let formatter = UsageFormatter(timeZone: .current)
-    private var contentPadding: CGFloat { compact ? 14 : 16 }
     private var presentation: UsageSourcePresentation {
         SourceCatalog.presentation(for: sourceKind)
     }
@@ -30,11 +29,12 @@ struct UsageGaugeView: View {
     }
 
     private func message(_ text: String) -> some View {
-        Text(text)
+        let density = UsageGaugePolicy.density(compact: compact, windowCount: 0)
+        return Text(text)
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.leading)
-            .padding(contentPadding)
+            .padding(density.contentPadding)
     }
 
     private func rows(
@@ -46,11 +46,12 @@ struct UsageGaugeView: View {
         case .fresh: ""
         case .stale(let age): " · \(formatter.ageDescription(age))"
         }
+        let density = UsageGaugePolicy.density(compact: compact, windowCount: windows.count)
 
-        return VStack(alignment: .leading, spacing: compact ? 10 : 16) {
+        return VStack(alignment: .leading, spacing: density.rowSpacing) {
             if compact {
                 Text(presentation.compactHeader)
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: density.headerSize, weight: .bold))
                     .kerning(0.6)
                     .foregroundStyle(.tertiary)
                     .padding(.trailing, 44)
@@ -76,7 +77,7 @@ struct UsageGaugeView: View {
                         ? "Not started"
                         : resetLine(for: window, ageSuffix: ageSuffix),
                     dimmed: stale,
-                    compact: compact
+                    density: density
                 )
             }
             if let fetchLine = fetchStatusLine {
@@ -86,7 +87,7 @@ struct UsageGaugeView: View {
                     .lineLimit(2)
             }
         }
-        .padding(contentPadding)
+        .padding(density.contentPadding)
         .padding(.horizontal, compact ? 0 : 2)
     }
 

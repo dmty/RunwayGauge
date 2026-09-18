@@ -8,23 +8,23 @@ struct UsageBar: View {
     var trailingText: String? = nil
     let resetLine: String
     let dimmed: Bool
-    let compact: Bool
+    let density: UsageGaugeDensity
 
     private var fraction: Double { min(max(window.usedPercent / 100, 0), 1) }
     private var percentLabel: String {
         if let trailingText { return trailingText }
         let percent = "\(Int(window.usedPercent.rounded()))%"
-        return compact ? percent : "\(percent) used"
+        return density.compact ? percent : "\(percent) used"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 3 : 5) {
+        VStack(alignment: .leading, spacing: density.barSpacing) {
             HStack(alignment: .firstTextBaseline) {
                 Text(label)
-                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
+                    .font(.system(size: density.labelSize, weight: .semibold))
                 Spacer(minLength: 4)
                 Text(percentLabel)
-                    .font(.system(size: compact ? 12 : 13, weight: .bold))
+                    .font(.system(size: density.labelSize, weight: .bold))
                     .monospacedDigit()
             }
             GeometryReader { geo in
@@ -33,9 +33,9 @@ struct UsageBar: View {
                     Capsule().fill(level.color).frame(width: geo.size.width * fraction)
                 }
             }
-            .frame(height: 8)
+            .frame(height: density.barHeight)
             Text(resetLine)
-                .font(.system(size: compact ? 10 : 11))
+                .font(.system(size: density.resetSize))
                 .foregroundStyle(dimmed ? .tertiary : .secondary)
                 .lineLimit(1)
         }
