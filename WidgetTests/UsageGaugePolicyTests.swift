@@ -37,4 +37,14 @@ struct UsageGaugePolicyTests {
         #expect(three.contentPadding == 16)
         #expect(three.rowSpacing == 16)
     }
+
+    @Test("compact header appends plan when enabled")
+    func compactHeaderIncludesPlan() {
+        #expect(UsageGaugePolicy.compactTitle(header: "CLAUDE CODE", plan: "Max 20x", showPlan: true)
+            == "CLAUDE CODE · Max 20x")
+        #expect(UsageGaugePolicy.compactTitle(header: "CLAUDE CODE", plan: "Max 20x", showPlan: false)
+            == "CLAUDE CODE")
+        #expect(UsageGaugePolicy.compactTitle(header: "CLAUDE CODE", plan: nil, showPlan: true)
+            == "CLAUDE CODE")
+    }
 }

@@ -34,10 +34,12 @@ public struct UsagePoller {
         accessToken: String,
         usageURL: URL,
         force: Bool,
-        now: Date = Date()
+        now: Date = Date(),
+        credentialPlan: String? = nil
     ) async -> Step {
         let existing = loadExisting(from: usageURL)
         let mtime = (try? fileManager.attributesOfItem(atPath: usageURL.path))?[.modificationDate] as? Date
+        let needsPlan = credentialPlan != nil && (existing?.plan == nil || existing?.plan?.isEmpty == true)
         guard PollPolicy.shouldFetch(
             force: force,
             fileModificationDate: mtime,
@@ -45,7 +47,7 @@ public struct UsagePoller {
             origin: existing?.origin,
             windows: existing?.windows ?? [],
             now: now
-        ) else { return .skipped }
+        ) || needsPlan else { return .skipped }
 
         let status: Int
         let body: Data
@@ -62,7 +64,8 @@ public struct UsagePoller {
             body: body,
             retryAfter: retryAfter,
             existing: existing,
-            observedAt: now
+            observedAt: now,
+            credentialPlan: credentialPlan
         ) else { return .softFailed }
 
         return commit(record, to: usageURL, now: now)

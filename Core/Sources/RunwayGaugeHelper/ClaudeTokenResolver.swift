@@ -1,26 +1,44 @@
 import Foundation
 import UsageCore
 
+struct ClaudeCredentials {
+    var accessToken: String
+    var planLabel: String?
+}
+
 enum ClaudeTokenResolver {
-    static func accessToken(
+    static func credentials(
         configDir: String?,
         keychainService: String?,
         keychainAccount: String?
-    ) -> String? {
+    ) -> ClaudeCredentials? {
         if let service = keychainService,
-           let token = KeychainTokenReader.accessToken(service: service, account: keychainAccount) {
-            return token
+           let data = KeychainTokenReader.credentialData(service: service, account: keychainAccount),
+           let creds = parse(data) {
+            return creds
         }
         if ClaudeOAuthToken.isDefaultConfigDir(configDir),
-           let token = KeychainTokenReader.accessToken(
+           let data = KeychainTokenReader.credentialData(
             service: ClaudeOAuthSource.genericKeychainService,
             account: nil
-           ) {
-            return token
+           ),
+           let creds = parse(data) {
+            return creds
         }
         if let configDir {
-            return ClaudeOAuthToken.readAccessToken(configDir: configDir)
+            let url = URL(fileURLWithPath: configDir).appendingPathComponent(".credentials.json")
+            if let data = FileManager.default.contents(atPath: url.path) {
+                return parse(data)
+            }
         }
         return nil
+    }
+
+    private static func parse(_ data: Data) -> ClaudeCredentials? {
+        guard let token = ClaudeOAuthToken.parseAccessToken(from: data) else { return nil }
+        return ClaudeCredentials(
+            accessToken: token,
+            planLabel: ClaudeOAuthToken.parsePlanLabel(from: data)
+        )
     }
 }

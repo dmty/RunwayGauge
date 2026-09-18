@@ -50,7 +50,8 @@ public enum PollPolicy {
         body: Data,
         retryAfter: TimeInterval?,
         existing: UsageRecord?,
-        observedAt: Date = Date()
+        observedAt: Date = Date(),
+        credentialPlan: String? = nil
     ) -> UsageRecord? {
         if status == 200 {
             guard let mapped = try? OAuthUsageMapper.map(
@@ -66,7 +67,7 @@ public enum PollPolicy {
                     existing: existing?.windows ?? [],
                     now: observedAt
                 ),
-                plan: mapped.plan ?? existing?.plan,
+                plan: mapped.plan ?? credentialPlan ?? existing?.plan,
                 fetchStatus: FetchStatus(state: .ok, httpStatus: 200, updatedAt: observedAt)
             )
         }

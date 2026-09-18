@@ -50,13 +50,17 @@ struct UsageGaugeView: View {
 
         return VStack(alignment: .leading, spacing: density.rowSpacing) {
             if compact {
-                Text(presentation.compactHeader)
+                Text(UsageGaugePolicy.compactTitle(
+                    header: presentation.compactHeader,
+                    plan: record.plan,
+                    showPlan: options.showPlanLabel
+                ))
                     .font(.system(size: density.headerSize, weight: .bold))
                     .kerning(0.6)
                     .foregroundStyle(.tertiary)
                     .padding(.trailing, 44)
             }
-            if options.showPlanLabel, let plan = record.plan, !plan.isEmpty {
+            if !compact, options.showPlanLabel, let plan = record.plan, !plan.isEmpty {
                 Text(plan)
                     .font(.system(size: compact ? 10 : 11, weight: .medium))
                     .foregroundStyle(.secondary)

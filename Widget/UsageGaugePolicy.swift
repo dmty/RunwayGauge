@@ -37,6 +37,11 @@ enum UsageGaugePolicy {
         return windowCount >= 3 ? compactTight : compactRegular
     }
 
+    static func compactTitle(header: String, plan: String?, showPlan: Bool) -> String {
+        guard showPlan, let plan, !plan.isEmpty else { return header }
+        return "\(header) · \(plan)"
+    }
+
     private static let medium = UsageGaugeDensity(
         compact: false,
         contentPadding: 16,

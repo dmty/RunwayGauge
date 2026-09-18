@@ -178,6 +178,22 @@ struct PollPolicyTests {
         #expect(record?.fetchStatus?.state == .ok)
         #expect(record?.fetchStatus?.httpStatus == 200)
         #expect(record?.windows.isEmpty == false)
+        #expect(record?.plan == nil)
+    }
+
+    @Test("200 fills plan from credentialPlan when OAuth body has none")
+    func okMappingUsesCredentialPlan() throws {
+        let body = try Data(contentsOf: fixtureURL("oauth-usage-response.json"))
+        let record = PollPolicy.makePollRecord(
+            accountId: "acc_test",
+            status: 200,
+            body: body,
+            retryAfter: nil,
+            existing: nil,
+            observedAt: now,
+            credentialPlan: "Max 20x"
+        )
+        #expect(record?.plan == "Max 20x")
     }
 
     @Test("200 with null five_hour keeps a live existing session")
@@ -461,6 +477,27 @@ struct UsagePollerTests {
             accountId: accountId, accessToken: "test-token", usageURL: url, force: false, now: now
         )
         #expect(step == .skipped && fake.callCount == 0)
+    }
+
+    @Test("fresh file without plan still polls when credentialPlan is known")
+    func fetchesToBackfillPlan() async throws {
+        let (dir, url) = try tempUsageURL(age: -30, usedPercent: 1)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fake = FakeFetcher(status: 200, body: try Data(contentsOf: fixtureURL("oauth-usage-response.json")))
+        let step = await UsagePoller(fetcher: fake).poll(
+            accountId: accountId,
+            accessToken: "test-token",
+            usageURL: url,
+            force: false,
+            now: now,
+            credentialPlan: "Max 20x"
+        )
+        #expect(step == .committed(wrote: true))
+        #expect(fake.callCount == 1)
+        guard case .record(let record) = UsageStore.load(from: url) else {
+            Issue.record("expected committed record"); return
+        }
+        #expect(record.plan == "Max 20x")
     }
 
     @Test("429 commits rateLimited with preserved windows and last-good updatedAt")

@@ -22,17 +22,18 @@ enum PollCommand {
                 let keychainService,
                 let keychainAccount
             ):
-                guard let token = ClaudeTokenResolver.accessToken(
+                guard let creds = ClaudeTokenResolver.credentials(
                     configDir: configDir,
                     keychainService: keychainService,
                     keychainAccount: keychainAccount
                 ) else { continue }
                 _ = await UsagePoller(fetcher: UsageHTTPClient()).poll(
                     accountId: accountId,
-                    accessToken: token,
+                    accessToken: creds.accessToken,
                     usageURL: usageURL,
                     force: force,
-                    now: now
+                    now: now,
+                    credentialPlan: creds.planLabel
                 )
 
             case .codex(let accountId, _, let executablePath):

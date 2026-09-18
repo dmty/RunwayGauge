@@ -34,4 +34,22 @@ struct ClaudeOAuthTokenTests {
         #expect(!ClaudeOAuthToken.isDefaultConfigDir("/Users/ada/.claude-v"))
         #expect(!ClaudeOAuthToken.isDefaultConfigDir(nil))
     }
+
+    @Test("formats Max 20x from subscriptionType and rateLimitTier")
+    func planLabelMax20x() {
+        let data = Data(#"{ "claudeAiOauth": { "accessToken": "t", "subscriptionType": "max", "rateLimitTier": "default_claude_max_20x" } }"#.utf8)
+        #expect(ClaudeOAuthToken.parsePlanLabel(from: data) == "Max 20x")
+    }
+
+    @Test("formats Pro from subscriptionType")
+    func planLabelPro() {
+        let data = Data(#"{ "claudeAiOauth": { "accessToken": "t", "subscriptionType": "pro", "rateLimitTier": "default_claude_ai" } }"#.utf8)
+        #expect(ClaudeOAuthToken.parsePlanLabel(from: data) == "Pro")
+    }
+
+    @Test("returns nil when subscription fields are missing")
+    func planLabelMissing() {
+        let data = Data(#"{ "claudeAiOauth": { "accessToken": "t" } }"#.utf8)
+        #expect(ClaudeOAuthToken.parsePlanLabel(from: data) == nil)
+    }
 }
