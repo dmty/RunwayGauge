@@ -83,7 +83,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var codexStatus: CodexDiscoveryStatus = .notInstalled
 
     init() {
-        Task { await bootstrap() }
+        Task {
+            await bootstrap()
+            await syncHelpersIfOutdated()
+        }
     }
 
     var canMutateRegistry: Bool {
@@ -110,6 +113,18 @@ final class AppModel: ObservableObject {
             bootstrapError = nil
         } catch {
             bootstrapError = error.localizedDescription
+        }
+    }
+
+    // App updates replace the bundle but not the copy launchd runs.
+    func syncHelpersIfOutdated() async {
+        // Test runs launch this app as their host; keep them off the real install.
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        let outdated = await Task.detached(priority: .utility) {
+            HelperSetup.installedHelpersOutdated()
+        }.value
+        if outdated {
+            await runHelperSetup()
         }
     }
 

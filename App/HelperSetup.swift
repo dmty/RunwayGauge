@@ -56,6 +56,21 @@ enum HelperSetup {
         )
     }
 
+    /// True when helpers were set up before but the installed copy no longer matches this app's bundle.
+    static func installedHelpersOutdated(
+        bundled: URL? = bundledHelpersURL,
+        installed: URL = installDirectoryURL,
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL? = nil
+    ) -> Bool {
+        guard let bundled,
+              isHelperBinaryAvailable(in: bundled, fileManager: fileManager),
+              isInstalled(fileManager: fileManager, homeDirectoryURL: homeDirectoryURL) else {
+            return false
+        }
+        return !fileManager.contentsEqual(atPath: bundled.path, andPath: installed.path)
+    }
+
     static func refreshUsageNow() async -> SetupResult {
         let installDir = installDirectoryURL
         guard isHelperBinaryAvailable(in: installDir) else {
