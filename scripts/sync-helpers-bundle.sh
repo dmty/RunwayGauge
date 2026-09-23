@@ -17,12 +17,11 @@ for f in "${RUNTIME[@]}"; do cp "$ROOT/scripts/$f" "$DEST/$f"; done
 # Universal binary (arm64 + x86_64) for Intel + Apple Silicon Macs.
 (
   cd "$ROOT/Core"
-  swift build -c release --arch arm64 --product RunwayGaugeHelper
-  swift build -c release --arch x86_64 --product RunwayGaugeHelper
-  lipo -create \
-    .build/arm64-apple-macosx/release/RunwayGaugeHelper \
-    .build/x86_64-apple-macosx/release/RunwayGaugeHelper \
-    -output "$DEST/runwaygauge-helper"
+  ARCHS=(--arch arm64 --arch x86_64)
+  swift build -c release "${ARCHS[@]}" --product RunwayGaugeHelper
+  # Output dir differs between SwiftPM build systems; ask instead of hardcoding.
+  cp "$(swift build -c release "${ARCHS[@]}" --show-bin-path)/RunwayGaugeHelper" "$DEST/runwaygauge-helper"
+  for arch in arm64 x86_64; do lipo "$DEST/runwaygauge-helper" -verify_arch "$arch"; done
   # Ad-hoc by default; Developer ID when CODESIGN_IDENTITY is set.
   if [[ -n "${CODESIGN_IDENTITY:-}" && "$CODESIGN_IDENTITY" != "-" ]]; then
     codesign -s "$CODESIGN_IDENTITY" --force --timestamp --options runtime "$DEST/runwaygauge-helper"
