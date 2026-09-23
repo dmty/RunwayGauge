@@ -17,6 +17,7 @@ let package = Package(
             dependencies: ["UsageCore", "CodexAppServer"]
         ),
         .testTarget(name: "UsageCoreTests", dependencies: ["UsageCore"]),
+        .testTarget(name: "RunwayGaugeHelperTests", dependencies: ["RunwayGaugeHelper"]),
         .testTarget(
             name: "CodexAppServerTests",
             dependencies: ["CodexAppServer", "UsageCore"]
