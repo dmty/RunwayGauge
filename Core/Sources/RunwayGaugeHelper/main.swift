@@ -17,6 +17,7 @@ case "poll":
     exit(0)
 
 case "write":
+    Responsibility.disclaim()
     let accountId = parseFlagValue(args, name: "--account-id")
     WriteCommand.run(accountIdFlag: accountId)
     exit(0)
